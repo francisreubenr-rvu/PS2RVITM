@@ -15,7 +15,7 @@ export const SURFACES = [
 ];
 
 export const BACKDROPS = [
-  { id: 'aurora', label: 'Northern lights', hint: 'Slow curtains of northern lights that bend and brighten around your cursor.' },
+  { id: 'aurora', label: 'Northern lights', hint: 'Slow curtains of northern lights drifting behind the glass.' },
   { id: 'still', label: 'Still gradient', hint: 'A warm gradient with soft blobs behind the glass, held still.' },
   { id: 'plain', label: 'Plain', hint: 'One soft gradient, no blobs.' },
 ];
