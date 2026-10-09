@@ -14,7 +14,7 @@ const has = (t, words) => words.some((w) => (w.includes(' ') ? ` ${t} `.includes
 
 const YES = ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay', 'apply', 'confirm', 'go ahead', 'do it', 'correct', 'right', 'proceed', 'haan', 'han', 'ji', 'theek hai', 'हाँ', 'हां', 'जी', 'ठीक है', 'हौदु', 'houdu', 'ಹೌದು', 'ಸರಿ', 'sari'];
 const NO = ['no', 'nope', 'cancel', 'discard', 'stop', 'dont', 'don t', 'do not', 'never mind', 'nevermind', 'nahi', 'nahin', 'mat', 'नहीं', 'नही', 'रहने दो', 'illa', 'beda', 'ಇಲ್ಲ', 'ಬೇಡ'];
-const REPEAT = ['repeat', 'repeat that', 'say that again', 'say it again', 'read it again', 'pardon', 'come again', 'dobara', 'phir se', 'दोबारा', 'फिर से', 'matte helu', 'ಮತ್ತೆ ಹೇಳಿ'];
+const REPEAT = ['can you repeat that for me', 'can you repeat that', 'could you repeat that', 'repeat', 'repeat that', 'say that again', 'say it again', 'read it again', 'pardon', 'come again', 'dobara', 'phir se', 'दोबारा', 'फिर से', 'matte helu', 'ಮತ್ತೆ ಹೇಳಿ'];
 const HELP = ['help', 'help me', 'what can you do', 'what can i say', 'madad', 'मदद', 'sahaya', 'ಸಹಾಯ'];
 const SKIP = ['skip', 'skip it', 'skip this', 'skip this one', 'chhod do', 'छोड़ दो', 'bidi', 'ಬಿಡಿ'];
 const FINISH = ['build the plan', 'build my plan', 'make the plan', 'create the plan', 'plan banao', 'प्लान बनाओ', 'yojane maadi', 'ಯೋಜನೆ ಮಾಡಿ'];

@@ -84,18 +84,18 @@ def test_no_key_is_503_and_nothing_leaves(rig):
 
 def test_the_settings_switch_is_respected(rig):
     _, c, reel, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    c.put("/settings/toggles/groq", json={"enabled": False})
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    c.put("/settings/toggles/openrouter", json={"enabled": False})
     assert refine(c, reel).status_code == 503
     assert Fake.calls == []
 
 
 def test_one_model_and_the_master_doc_rules(rig):
     _, c, reel, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     assert refine(c, reel).status_code == 200
     sent = Fake.calls[-1][1]["json"]
-    assert sent["model"] == brain.GROQ_MODEL == "qwen/qwen3.8-27b" and "gpt-oss" not in sent["model"]
+    assert sent["model"] == brain.TEXT_MODEL == "z-ai/glm-5.3-flash" and "gpt-oss" not in sent["model"]
     assert sent["response_format"] == {"type": "json_object"}
     system = sent["messages"][0]["content"]
     for rule in ("Motion is opt-in", "no push-in, no parallax", "Recognition", "Offer", "Action", "concrete nouns and verbs",
@@ -105,7 +105,7 @@ def test_one_model_and_the_master_doc_rules(rig):
 
 def test_the_model_gets_the_item_and_script_but_no_offer_figures(rig):
     _, c, reel, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     refine(c, reel, aspect="9:16", note="Keep it calm")
     sent = Fake.calls[-1][1]["json"]["messages"][1]["content"]
     brief = json.loads(sent)
@@ -117,7 +117,7 @@ def test_the_model_gets_the_item_and_script_but_no_offer_figures(rig):
 
 def test_motion_note_is_sent_only_when_opted_in(rig):
     _, c, reel, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     refine(c, reel, motion_opt_in=False, motion_note="slow zoom in")
     assert json.loads(Fake.calls[-1][1]["json"]["messages"][1]["content"])["motion_note"] == ""
     refine(c, reel, motion_opt_in=True, motion_note="steam rises")
@@ -127,9 +127,9 @@ def test_motion_note_is_sent_only_when_opted_in(rig):
 
 def test_the_contract_is_returned_shaped(rig):
     _, c, reel, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     out = refine(c, reel).json()
-    assert out["asset_id"] == reel and out["model"] == "qwen/qwen3.8-27b" and out["aspect"] == "16:9"
+    assert out["asset_id"] == reel and out["model"] == "z-ai/glm-5.3-flash" and out["aspect"] == "16:9"
     assert out["prompt"] == GOOD["prompt"]
     assert [b["beat"] for b in out["beats"]] == ["Recognition", "Offer", "Action"]
     assert out["left_out"] == GOOD["left_out"] and out["order"][0] == "subject and setting"
@@ -146,7 +146,7 @@ def test_the_contract_is_returned_shaped(rig):
 ])
 def test_a_bad_reply_is_502_and_never_shown(rig, bad):
     _, c, reel, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     Fake.reply = groq_reply(bad)
     r = refine(c, reel)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "brain_bad_reply"
@@ -154,14 +154,14 @@ def test_a_bad_reply_is_502_and_never_shown(rig, bad):
 
 def test_a_provider_error_is_502(rig):
     _, c, reel, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     Fake.reply = httpx.Response(500, text="boom")
     assert refine(c, reel).json()["detail"]["code"] == "brain_provider_error"
 
 
 def test_only_a_reel_can_be_refined(rig):
     app, c, _, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     other = app.state.db.query_one("SELECT id FROM asset WHERE channel = 'whatsapp'")["id"]
     assert refine(c, other).json()["detail"]["code"] == "no_video_for_channel"
     assert refine(c, "missing").status_code == 404
@@ -226,7 +226,7 @@ def test_oversized_prompt_is_never_silently_cut():
 
 def test_oversized_refinement_gets_one_complete_rewrite(rig):
     _,c,reel,_,mp=rig
-    mp.setenv("GROQ_API_KEY","test-key")
+    mp.setenv("OPENROUTER_API_KEY","test-key")
     briefs=[]
     async def answer(brief):
         briefs.append(brief)
@@ -240,7 +240,7 @@ def test_oversized_refinement_gets_one_complete_rewrite(rig):
 
 def test_repeated_oversized_refinement_fails_after_two_calls(rig):
     _,c,reel,_,mp=rig
-    mp.setenv("GROQ_API_KEY","test-key")
+    mp.setenv("OPENROUTER_API_KEY","test-key")
     calls=[]
     async def answer(brief):
         calls.append(brief)

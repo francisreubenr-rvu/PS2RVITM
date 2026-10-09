@@ -25,7 +25,7 @@ const PACKS = [
 
 const csv = (text) => (text || '').split(',').map((s) => s.trim()).filter(Boolean);
 
-// The planner step. One call, to the Groq Qwen pathways route, the moment the form is submitted.
+// The planner step. One call, to the OpenRouter GLM pathways route, the moment the form is submitted.
 const pathwaysFor = (body) => api('/launch/pathways', { method: 'POST', body: JSON.stringify(body) });
 
 // One voice-led field: its own mic, so each of the three questions can be answered by speaking or typing. Reuses useVoiceInput.
@@ -60,7 +60,7 @@ const VoicedField = ({ label, hint, value, onChange, placeholder }) => {
   );
 };
 
-// S16: for someone with no business yet. The answers go to the Groq Qwen planner, which lays out three or four pathways; the owner
+// S16: for someone with no business yet. The answers go to the OpenRouter GLM planner, which lays out three or four pathways; the owner
 // picks one, then ideas, a name, a tagline, a brand look, prices and a launch pack are built from it. Name and tagline are suggested
 // unless the owner already gave them, and both stay editable. Suggestions, not advice; costs are estimates; Hindi and Kannada lines
 // are drafts. The last step hands the choices to the agent, which still stops at the plan lock.
@@ -265,7 +265,7 @@ const Launch = () => {
             <CardTitle sub={notConfigured ? 'The planning model is not switched on.' : L.disclaimer ?? 'Pick the direction you want to take. You can come back and choose another.'}>Pathways for you</CardTitle>
             {notConfigured && (
               <p role="alert" className="mb-4 rounded-xl bg-warn/15 px-4 py-3 text-sm text-ink">
-                No pathways to show, because the Groq planner is off or has no key. Turn Groq on in Settings, then go back and try again.
+                No pathways to show, because the OpenRouter planner is off or has no key. Turn OpenRouter on in Settings, then go back and try again.
                 Nothing here is invented when the model is unavailable.
               </p>
             )}

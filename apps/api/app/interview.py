@@ -116,7 +116,7 @@ SCRIPT: tuple[Q, ...] = (
       {"en": "What kind of business is it?", "hi": "यह किस तरह का बिज़नेस है?", "kn": "ಇದು ಯಾವ ರೀತಿಯ ವ್ಯಾಪಾರ?"},
       "Pick one."),
     Q("area", "area", "text", True,
-      {"en": "Where is it? Say the area and city.", "hi": "यह कहाँ है? इलाका और शहर बताइए।", "kn": "ಇದು ಎಲ್ಲಿದೆ? ಪ್ರದೇಶ ಮತ್ತು ನಗರ ಹೇಳಿ."},
+      {"en": "Which city or area is it in?", "hi": "यह किस शहर या इलाके में है?", "kn": "ಇದು ಯಾವ ನಗರ ಅಥವಾ ಪ್ರದೇಶದಲ್ಲಿದೆ?"},
       "Say the locality and the city."),
     Q("goal", "goal", "single", True,
       {"en": "What do you want from this campaign?", "hi": "इस कैंपेन से आप क्या चाहते हैं?", "kn": "ಈ ಅಭಿಯಾನದಿಂದ ನಿಮಗೇನು ಬೇಕು?"},
@@ -515,6 +515,10 @@ async def interpret(q: Q, text: str, choices: list[str], source: str, today: dat
         return Reading("rejected", reason="Say or tap an answer.")
     if not q.required and speech.squash(text).lower() in SKIP_WORDS:
         return _accepted(None, "Skipped.")
+    if q.field == "area":
+        # A stated city/state is enough. Do not ask a model to demand an unstated locality.
+        location = re.sub(r"^(?:it(?:'s| is)|(?:my |the )?(?:business|cafe|shop) is)\s+(?:located\s+)?in\s+", "", text, flags=re.I)
+        return _read_text(q.field, location)
     spoken_text = q.kind == "text" and q.field != "cta" and source == "voice"
     reading = Reading("none") if spoken_text else read_deterministic(q, text, today)
     if reading.status == "none" and agnes is not None and q.field != "cta":

@@ -48,14 +48,14 @@ export async function runActions(
         break;
       case "start_plan":
         await attempt("start_plan", async () => {
-          await approvePlan(need());
-          return "plan locked";
+          navigate("plan", need());
+          return "opened the draft plan for your approval";
         });
         break;
       case "generate_campaign":
         await attempt("generate_campaign", async () => {
-          await generate(need());
-          return "Campaign written";
+          navigate("campaign", need());
+          return "opened Campaign for review before paid generation";
         });
         break;
       case "apply_change":
@@ -64,16 +64,16 @@ export async function runActions(
           if (!text) throw new Error("no change text");
           const proposal = await proposeChange(need(), text);
           if (!proposal.grounded) throw new Error(proposal.summary || "the change is not grounded in your facts");
-          await applyChange(need(), proposal.proposal_id);
-          return "change applied";
+          navigate("voice");
+          return `Change proposed, not applied: ${proposal.summary}. Review and explicitly confirm with Agnez.`;
         });
         break;
       case "generate_video":
         await attempt("generate_video", async () => {
           const assetId = String(p.asset_id || "").trim();
           if (!assetId) throw new Error("no asset id");
-          await makeVideo(assetId, p.aspect === "9:16" ? "9:16" : "16:9");
-          return "video queued";
+          navigate("video");
+          return "opened Reels for prompt and motion review before paid generation";
         });
         break;
       default:

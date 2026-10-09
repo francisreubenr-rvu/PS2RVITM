@@ -1,5 +1,4 @@
-"""site: the one-page website, generated through the Groq Qwen planner. One model only (qwen/qwen3.8-27b, GROQ_CHAT_MODEL as
-the override). When Groq is switched off in Settings or has no key, the route answers 503 "not configured" and the screen says
+"""site: the one-page website, generated through the OpenRouter GLM planner. One model only (z-ai/glm-5.3-flash, no model fallback). When OpenRouter is switched off in Settings or has no key, the route answers 503 "not configured" and the screen says
 so, rather than showing a page that was never generated.
 
 The model writes the site's CONTENT and STRUCTURE: the section order, the headings and sentences, the one primary action's
@@ -40,6 +39,7 @@ import httpx
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from app.config import TEXT_PROVIDER, TEXT_URL, text_api_key, text_request
 from app import brain, business, extras, languages
 from app.db import Database
 from app.media import fail
@@ -142,17 +142,17 @@ class GenerateIn(BaseModel):
 # ---------------------------------------------------------------- the model call
 
 async def _qwen(system: str, user: dict[str, Any], max_tokens: int) -> dict[str, Any]:
-    """One call to the Groq Qwen planner. Raises a clear 503 when Groq is off or unkeyed, 502 when it fails or answers junk."""
-    key = (os.environ.get("GROQ_API_KEY") or "").strip()
+    """One call to the OpenRouter GLM planner. Raises a clear 503 when OpenRouter is off or unkeyed, 502 when it fails or answers junk."""
+    key = text_api_key()
     if not key:
-        raise fail("brain_not_configured", "The Groq planner has no key on the server. Add one to switch it on.", 503)
-    payload = {"model": brain.GROQ_MODEL,  # one model only: qwen, with GROQ_CHAT_MODEL as the override
+        raise fail("brain_not_configured", "The OpenRouter planner has no key on the server. Add one to switch it on.", 503)
+    payload = {"model": brain.TEXT_MODEL,  # one fixed model, no model fallback
                "messages": [{"role": "system", "content": system},
                             {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
                "temperature": 0.6, "max_tokens": max_tokens, "response_format": {"type": "json_object"}}
     try:
         async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.post(brain.GROQ_URL, headers={"Authorization": f"Bearer {key}"}, json=payload)
+            response = await client.post(brain.TEXT_URL, headers={"Authorization": f"Bearer {key}"}, json=text_request(payload))
     except httpx.HTTPError as exc:
         raise fail("website_failed", f"The website writer did not answer just now ({type(exc).__name__}). Try again.", 502) from exc
     if response.status_code >= 400:
@@ -408,11 +408,11 @@ def render_page(site: dict[str, Any], profile: dict[str, Any], facts: dict[str, 
 
 @router.post("/site/generate")
 async def generate(body: GenerateIn, request: Request) -> dict:
-    """The owner's one-page site, written by the Groq Qwen planner from their own brand, offer and languages."""
+    """The owner's one-page site, written by the OpenRouter GLM planner from their own brand, offer and languages."""
     if body.lang not in languages.CODES:
         raise fail("bad_language", "That language is not one GrowIt knows.", 422)
-    if not extras.toggle_state(request.app.state.db, "groq")["active"]:
-        raise fail("brain_not_configured", "The Groq planner is off or has no key. Switch Groq on in Settings, then try again.", 503)
+    if not extras.toggle_state(request.app.state.db, "openrouter")["active"]:
+        raise fail("brain_not_configured", "The OpenRouter planner is off or has no key. Switch OpenRouter on in Settings, then try again.", 503)
 
     db: Database = request.app.state.db
     profile, _row = business._load(db, business.connections._require_owner(request))  # noqa: SLF001
@@ -453,4 +453,4 @@ async def generate(body: GenerateIn, request: Request) -> dict:
     page, warnings = render_page(site, profile, facts, body.lang)
     return {"site": {"lang": body.lang, "idea": site["idea"], "style": site["style"], "fonts": PAIRINGS[site["fonts"]],
                      "palette": site["palette"], "sections": [s["kind"] for s in site["sections"]]},
-            "html": page, "model": brain.GROQ_MODEL, "warnings": warnings, "disclaimer": DISCLAIMER}
+            "html": page, "model": brain.TEXT_MODEL, "warnings": warnings, "disclaimer": DISCLAIMER}

@@ -10,7 +10,7 @@ export function useSpeaker(lang: string) {
   });
   const speak = useCallback(async (text: string, force = false) => {
     if (!text.trim() || (muted && !force)) return;
-    if (await agnez.start({ lang, brief: "Read each SAY message exactly in its written language. Do not add questions or commentary." })) {
+    if (await agnez.start({ lang, firstMessage: "" })) {
       await agnez.say(text);
     }
   }, [agnez.start, agnez.say, lang, muted]);

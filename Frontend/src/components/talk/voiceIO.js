@@ -19,8 +19,12 @@ Speak plain words only: never say bracketed cues such as [calm] or [slow]. Give 
 // the interview, so these only acknowledge the call. Without them the agent reports "Client tool ... is not defined". One stable
 // object: the call restarts if the tools passed to start() change.
 const TALK_TOOLS = {
-  record_fact: () => 'noted',
-  revise_fact: () => 'noted',
+  record_fact: () => 'No fact saved by this tool. Talk records the transcript through GrowIt.',
+  revise_fact: () => 'No fact revised by this tool. Talk handles corrections through GrowIt.',
+  pause_briefing: () => 'This screen handles pause locally; wait for SAY instructions.',
+  resume_briefing: () => 'This screen handles resume locally; wait for SAY instructions.',
+  complete_briefing: () => 'This screen handles completion locally; wait for SAY instructions.',
+  flag_issue_for_review: () => 'No review was recorded. The owner must review the transcript in GrowIt.',
 };
 
 export function useTalkVoice({ onFinal, onAgent } = {}) {
@@ -35,7 +39,6 @@ export function useTalkVoice({ onFinal, onAgent } = {}) {
       onUser: (text) => { if (/^SAY:/i.test(text) || !/[\p{L}\p{N}]/u.test(text)) return; finalRef.current?.(text); }, // our own hand-off lines can echo back, and a bare "..." is room noise: neither is an answer
       onAgent: (text) => agentRef.current?.(text),
     });
-    a.prepare(); // the token is ready before the first line needs the call
     return () => { a.setHandlers(null); }; // the call outlives this hook: it belongs to the app, and ends only when the person ends it
   }, [a.setHandlers]); // eslint-disable-line react-hooks/exhaustive-deps
 

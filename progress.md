@@ -137,3 +137,103 @@ Historical reports above require current verification.
 Evidence: /private/tmp/growit-acceptance/results.json, speech.json and desktop/mobile screenshots. Controlled speech used actual configured ElevenLabs voice and existing saved filter coffee source. This is not a human microphone test. Talk audio probe never ran: escalation approval was pending when interrupted.
 
 Latest isolated backend suite: 624 passed, 1 skipped (26.18s), including upstream429 and configuration-only status regressions. Frontend build passed before the final mode guard; that frontend-only fix requires final build.
+
+## Agnez resume: 2026-10-10
+
+| Deliverable | Status | Verified result |
+|---|---|---|
+| Live Agnez patch | Done | Fresh GET confirmed prompt/first-message/language overrides already enabled. Three workflow additional prompts still forced personal-story behavior. Patched those and two transition conditions to defer to session mode; fresh GET exact equality confirmed workflow changes and preserved conversation_config/platform_settings. Private rollback snapshot: /private/tmp/growit-agnez-workflow-before.json |
+| Talk prompt and tools | Done for controlled acceptance | All six configured client tool names handled; responses explicitly say when no fact was saved. Provider transcripts show full SAY greeting exactly and without interruption at 1440/390 |
+| Connection lifecycle | Done for tested paths | Cancelling dictation during a delayed real token response then leaving the page opened no ElevenLabs websocket at either width. Pending shared starts serialized and invalidated by stop; mode changes invalidate old speech queue. New calls reset microphone mute |
+| Token efficiency | Done | Removed unconditional token warmup from globally mounted Talk hook. Real dictation and Talk each minted one token per checked viewport, previously two |
+| Dictation | Controlled acceptance done | Actual ElevenLabs ASR returned Filter coffee at 1440/390. Removed provider's exact Non-literal annotation from delivered text; output stays muted. No page errors or alerts |
+| Controls and appearance | Checked locally | http://127.0.0.1:3050 at 1440/390: mute/unmute, pause/resume, End call. Existing swirly ring and flowing lines inspected in screenshots; no horizontal overflow |
+| Validation | Done | Backend 635 passed, 1 skipped. Final frontend build passed. Existing chunk-size and ineffective dynamic import warnings remain |
+| Model comparison | Done | docs/model-swap.md. No model changed |
+| Human speech and barge-in | Not done | Controlled source audio and provider transcript checks do not establish human microphone, audible quality or real interruption acceptance |
+| SDK teardown console | Not clean | LiveKit logs WS closed unexpectedly 1006 when End call is requested. UI correctly returns ended with no alert; no error suppression added |
+| Older media/OAuth/ship tasks | Not done in this resume | Existing media quota/OAuth configuration gates still apply. No commit or push requested |
+
+Evidence: /private/tmp/growit-acceptance/agnez.json, speech.json, voice-cancel.json and desktop/mobile screenshots. Reproducible probes: Frontend/scripts/verify-agnez.mjs, verify-speech.mjs, verify-voice-cancel.mjs. Reproducible provider patch: scripts/patch-agnez.py. No secrets printed or stored in repository.
+
+## Authorized GLM experiment: 2026-10-10
+
+| Deliverable | Status | Evidence |
+|---|---|---|
+| Active reasoning model | Done | Single z-ai/glm-5.3-flash through OpenRouter in config, brain orchestration, shared campaign text facade, text chat, Launch, Website, video prompt refinement and memory tidy. No model fallback |
+| Credentials and gates | Done | OPENROUTER_API_KEY present on server; separate OpenRouter consent toggle and accurate health/provider metadata. Groq is retained only for its existing optional STT route |
+| Reasoning compatibility | Done | Disabling reasoning returned real provider 400 because reasoning is mandatory. Low effort with excluded trace and require_parameters=true returned 200, exact response model z-ai/glm-5.3-flash, 1.74 s, 27 input / 47 completion tokens, $0.00002539 reported cost |
+| Read-only app experiment | Done | Open Memory orchestration: 200 in 1.34 s, valid memory navigation action. Text chat: 200 in 1.87 s, selected provider/model and real saved coffee context. Existing approved coffee memory tidy preview: 200 in 1.38 s; four entries preserved 20%, dates, hours and dine-in only. No memory saved |
+| Media and voice separation | Done for source/test inspection | Agnez patch preserved. Agnes image/video transport remains unchanged, with two new regression cases asserting media model, endpoint and absence of OpenRouter parameters. No paid image/video generation attempted |
+| Backend validation | Done | Final full suite: 637 passed, 1 skipped, 32.44 s |
+| Frontend validation | Done | Build passed. Desktop1440/mobile390 Settings model label and real OpenRouter toggle off/on verified; health changed, zero console/page errors or horizontal overflow. Screenshots inspected. Existing chunk warnings remain |
+| Comparison confidence | Limited | Small bounded experiment demonstrates runtime compatibility. No Qwen baseline measured, no comparative multilingual/campaign-copy quality conclusion |
+
+Evidence: /private/tmp/growit-acceptance/glm-experiment.json; reproducible scripts/verify-glm.py. API restarted on 8031 with real server environment. No keys printed, no commit or push.
+
+## Platform-agent rebuild: authorized 2026-10-10
+
+The user approved docs/superpowers/specs/2026-10-10-agnez-platform-agent-design.md. PLAN.md tracks implementation.
+
+| Finding or change | Current evidence |
+|---|---|
+| Actual speech cutoff reproduced | Before native rebuild, desktop raw voiced audio 8.2347 s / audible 8.1493 s; mobile raw 6.144 s / audible 0.768 s with 126 muted speech frames. Provider transcript alone hid this failure |
+| Native volume ownership | Agnez now speaks directly with output controlled only by owner speech-volume/pause; no turn/SAY gates. Native decoded remote audio: desktop raw/audible 2.7733 s, mobile 4.736 s, zero muted speech frames |
+| Location loop | Actual English Bangalore Karnataka was transcribed correctly first, but model demanded an unstated locality. New regression failed before fix; location now deterministically preserves the stated city/state, strips only conversational prefix. 20 interview tests pass |
+| Language drift | Actual later Karnataka fragment rendered Devanagari. Live agent had auto language detection. Disabled that system tool and selected language explicitly restarts the call. Agents API documents language/ASR-keyword overrides, no separate explicit ASR language field; short-place-name accuracy still needs controlled source replay |
+| Native provider tools | Fresh GET confirms 11 platform tools and root prompt retasked, skip_turn added. Voice/ASR and platform permissions preserved. Historical six briefing tools retain compatibility; platform handlers return explicit mode errors, no false saved-fact response |
+| Platform executor | Real screen/control/field registry; secret/hidden/disabled controls excluded, IDs tied to snapshot/full route/signature. Unknown effects require a concrete pending action, fresh unqualified yes, exact ID and unchanged route/context/target state. Execution receipts describe actual interactions, not assumed backend completion |
+| Semantic tools | Native start/answer/finish interview; campaign draft agent run; grounded propose-change then confirm; GLM task reasoning returns proposals. Owner utterance sequence prevents duplicate answer applying to next question |
+| Old bypasses | runActions no longer auto-approves plan, applies change or queues paid video. Video API caller defaults motion false; actual campaign checkbox explicitly supplies opt-in |
+| Current verification | Builds pass. Actual native multi-turn, actions and registry adversarial browser gates pending; no completion claim yet |
+
+Private original provider snapshot: /private/tmp/growit-agnez-platform-before.json. Reproducible patch scripts/patch-agnez-platform.py. Actual user recording privately saved for controlled regression; no recording committed.
+
+### Current acceptance after the platform rebuild
+
+| Check | Verified evidence |
+|---|---|
+| Native interview at 1440/390 | One token each, actual user recording replay: Starbucks, cafe, In Bangalore Karnataka accepted; clarify null; next question goal. Repeat did not submit an answer. Native navigation reached Memory; zero page errors or overflow |
+| Full audible speech | Long real business-type choices: desktop raw/audible 8.4907 s, mobile 7.8507 s, zero muted voiced frames. Actual rendered audible WAV transcribed with ElevenLabs Scribe: all nine options and final What kind of business is it present at both widths |
+| Native controls and interruption | Both widths: actual Open Memory speech interrupted current readout, native navigate/click Import/fill field operated actual UI; saved Memory source 753d3b25a139 retained exactly in the textarea. One token per viewport, no save requests, zero page errors/overflow |
+| Guardrail false positive | Initial control requests were terminated by vendor Prompt Injection guardrail, confirmed from provider termination metadata. Disabled only that terminator after adding tool-level owner-value binding, authoritative semantic inputs, protected conversation inputs and existing confirmation gates. Focus/content guardrails and voice/ASR/tools/permissions preserved by exact fresh GET comparisons. This is not a claim of equivalent vendor security |
+| Action authorization | Registry actual UI: credential exclusion, stale IDs, premature/qualified/duplicate yes rejected, fresh matching yes toggled real OpenRouter and restored it. New owner-value checks and query/title-label coverage need final rerun |
+| Voice reasoning identity | Fresh provider config: ElevenLabs native voice agent uses deepseek-v41-flash for dialogue/tool choice. GrowIt server reasoning/planning remains z-ai/glm-5.3-flash through OpenRouter. No claim that the native voice LLM was changed to GLM |
+| Pending final checks | Denied-microphone native text fallback; Agent-page handoff and compact mobile dock; final console/registry rerun and final build. Known LiveKit WS1006 teardown diagnostic remains to classify, not suppress |
+
+Provider private snapshots: /private/tmp/growit-agnez-platform-before.json and /private/tmp/growit-agnez-guardrail-before.json. Actual provider has eleven platform client tools plus five historical briefing client tools (sixteen total), with registered platform mode-error handlers for historical tool calls. Earlier informal seventeen-count was inaccurate.
+
+### Final platform closeout: 2026-10-10
+
+| Deliverable | State | Final evidence |
+|---|---|---|
+| Native voice and tools | Done in exercised scope | Actual provider start/answer interview, navigation, control click and field fill tested at1440/390. Fresh GET confirms eleven platform and five historical client tools; native dialogue LLM deepseek-v41-flash, ASR scribe_realtime, English default, no auto-language tool |
+| Full speech and interruption | Controlled acceptance done | Long options plus final question fully present in rendered audible stream at both widths. Actual provider original readout marked interrupted when Open Memory audio replay began, then native navigation handled that utterance. No human microphone or subjective listening claim |
+| Grounded forms/actions | Done in exercised scope | Actual saved coffee Memory body filled and retained exactly through native client tools, with no save request. Registry tests reject unprovided field values, stale controls and premature/qualified/duplicate yes. Exact fresh yes works; real OpenRouter state restored |
+| Typed fallback | Done | Microphone permission deliberately denied: one initial request, zero fallback requests. Signed native text WebSocket executes Open Memory at both widths, zero page or console errors |
+| Agent handoff and responsive dock | Done | Actual Agent-page request flows into the same native conversation and opens Memory. Desktop dock245px, mobile compact80px; End remains visible. Zero page/console errors and horizontal overflow; screenshots inspected |
+| Shared read-aloud | Implemented; source/build checked | Existing read-aloud inherits native tool configuration and avoids switching to a tool-less agent. No extra paid read-aloud integration probe after this final change |
+| Legacy structured Memory briefing | Compatibility retained; live acceptance not done | Separate historical graph mode has explicit business-only briefing prompt and language override rather than inheriting the new operator prompt. It was not live tested in this closeout |
+| Backend/build | Done | Full638passed,1skipped; final frontend build passed380ms. Existing build chunk warnings remain |
+| Production/external paid effects | Not done | Local127.0.0.1:3050/8031 only. Publishing/sending/media generation and OAuth require their existing review/provider/configuration gates; no new paid media or external publication executed |
+| Commit/push | Not done | Not requested |
+
+Actual action coverage: known GrowIt routes; real visible registered text/select fields and buttons across body/portals; title/aria labels supported; query can narrow a large control set beyond the100-control snapshot cap. Secret/password/credential fields, hidden/disabled controls and the assistant's own message input/Send are excluded. Local file selection remains an owner action. The remaining semantic draft-plan/change/reason tools are implemented and use existing API gates, but this closeout did not live-execute every paid or consequential route.
+
+Evidence: /private/tmp/growit-acceptance/native-agnez.json, native-controls.json, audio-proof.json, audible-transcription.json, platform-registry.json, agnez-text.json, agnez-handoff.json and associated desktop/mobile screenshots. The early failed native harness stopped its own shared microphone track; corrected cloned-stream replay and isolated actual user-word clip boundaries before accepting results. Earlier HMR-corrupted test was rerun fresh. No secrets or recordings committed.
+
+### Final voice-approval bridge verification
+
+Four existing browser-confirm flows now accept only the exact one-use app-owned click proof generated after a matching fresh native pending approval: customer removal, remove-all customers, clear Memory and email-to-customers. Ordinary human clicks retain their original dialogs. No global window.confirm interception was added.
+
+Actual reversible Settings checks passed at1440/390: exact approved event accepted; replay, copied event and changed route rejected; original OpenRouter state restored. Final registry checks passed at both widths: credential exclusion, control query, accessible Edit labels, owner-provided field value; unprovided value, stale target and premature/qualified/duplicate confirmations rejected. Fresh Hindi हाँ was accepted with combining marks preserved. Irreversible removal/send branches were source verified and existing backend gates preserved; no customer deletion, memory clearing or email was executed. Final build380ms, diff check clean.
+
+## GitHub README and deployment plan: 2026-10-10
+
+| Deliverable | Status | Evidence |
+|---|---|---|
+| README | Done | Rewritten from current source/config. Includes GitHub Mermaid architecture, Agnez action/approval flow, campaign lifecycle, and release flow diagrams; provider split, local setup, tests, and project map |
+| Deployment plan | Done | `docs/deployment-plan.md` records verified deployment state, hosting requirements, secrets/access gates, staging checks, backup, rollout, and rollback sequence. Hosting target remains undecided |
+| Provider config guide | Done | README lists the live OpenRouter GLM and ElevenLabs Agnez variables. Existing `.env.example` was left unchanged because repo rules prohibit committing `.env*` files |
+| Commit and push | In progress | User authorized commit and push. Six existing local commits are ahead of `origin/main`; origin was fetched and confirmed not ahead |
+| Production deployment | Planned | No hosting manifest/workflow or production URL found. This task prepares a rollout plan; no deployment is configured or claimed |

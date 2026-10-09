@@ -1,6 +1,6 @@
 """videoprompt: the owner's reel brief becomes a refined video prompt, read and edited by the owner, before Agnes is asked
-for a video. The refiner is the app's one reasoning model (Groq qwen/qwen3.8-27b, GROQ_CHAT_MODEL as the override); when
-Groq is off in Settings or has no key the route answers 503 brain_not_configured and no prompt is invented.
+for a video. The refiner is the app's one reasoning model (OpenRouter z-ai/glm-5.3-flash, no model fallback); when
+OpenRouter is off in Settings or has no key the route answers 503 brain_not_configured and no prompt is invented.
 
 The rules come from docs/MEDIA_GENERATION_MASTER.md in the PS2RVITM2026-Francis repo and are applied as written. Where each
 one is enforced:
@@ -32,6 +32,7 @@ import httpx
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from app.config import TEXT_PROVIDER, TEXT_URL, text_api_key, text_request
 from app import brain, extras, media, plan
 from app.db import Database
 from app.media import fail
@@ -173,17 +174,17 @@ def brief_for(db: Database, asset: dict[str, Any], body: RefineIn) -> tuple[dict
 
 
 async def ask_model(brief: dict[str, Any]) -> Any:
-    """One call to the Groq reasoning model. Raises fail() with the app's codes."""
-    key = (os.environ.get("GROQ_API_KEY") or "").strip()
+    """One call to the OpenRouter reasoning model. Raises fail() with the app's codes."""
+    key = text_api_key()
     if not key:
-        raise fail("brain_not_configured", "The Groq model has no key on the server. Add one to switch it on.", 503)
-    payload = {"model": brain.GROQ_MODEL,  # one model only; GROQ_CHAT_MODEL is the override
+        raise fail("brain_not_configured", "The OpenRouter model has no key on the server. Add one to switch it on.", 503)
+    payload = {"model": brain.TEXT_MODEL,  # one model only; no model fallback
                "messages": [{"role": "system", "content": SYSTEM_PROMPT},
                             {"role": "user", "content": json.dumps(brief, ensure_ascii=False)}],
                "temperature": 0.4, "max_tokens": 1200, "response_format": {"type": "json_object"}}
     try:
         async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.post(brain.GROQ_URL, headers={"Authorization": f"Bearer {key}"}, json=payload)
+            response = await client.post(brain.TEXT_URL, headers={"Authorization": f"Bearer {key}"}, json=text_request(payload))
     except httpx.HTTPError as exc:
         raise fail("brain_provider_error", f"The prompt refiner did not answer just now ({type(exc).__name__}). Try again.", 502) from exc
     if response.status_code >= 400:
@@ -202,8 +203,8 @@ async def ask_model(brief: dict[str, Any]) -> Any:
 async def refine(body: RefineIn, request: Request) -> dict[str, Any]:
     """Refine the reel brief into a prompt the owner reads and edits. Nothing is generated and no video quota is spent."""
     db: Database = request.app.state.db
-    if not extras.toggle_state(db, "groq")["active"]:
-        raise fail("brain_not_configured", "The Groq model is off or has no key. Switch it on in Settings.", 503)
+    if not extras.toggle_state(db, "openrouter")["active"]:
+        raise fail("brain_not_configured", "The OpenRouter model is off or has no key. Switch it on in Settings.", 503)
     asset = media.asset_or_404(db, body.asset_id)
     if asset["channel"] != "reel":
         raise fail("no_video_for_channel", "Only reel assets carry a video.", 400)
@@ -220,7 +221,7 @@ async def refine(body: RefineIn, request: Request) -> dict[str, Any]:
             refined = clean_refined(await ask_model(shorter), facts)
         except ValueError as retry_exc:
             raise fail("brain_bad_reply", f"The refined prompt was rejected: {retry_exc}. Try again.", 502) from retry_exc
-    return {"asset_id": asset["id"], "model": brain.GROQ_MODEL, "aspect": body.aspect, "motion_opt_in": body.motion_opt_in,
+    return {"asset_id": asset["id"], "model": brain.TEXT_MODEL, "aspect": body.aspect, "motion_opt_in": body.motion_opt_in,
             "order": list(PROMPT_ORDER), **refined}
 
 

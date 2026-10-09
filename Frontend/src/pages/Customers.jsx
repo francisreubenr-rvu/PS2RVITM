@@ -1,3 +1,4 @@
+import { isAgnezApprovedClick } from '../voice/approvedClick';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, FileUp, Languages, Mail, MessageCircle, Pencil, Plus, Search, ShieldCheck, Trash2, Upload, UserPlus, Users, X } from 'lucide-react';
 import { API_URL, api } from '../campaign/lib/api';
@@ -184,8 +185,8 @@ const Customers = () => {
     return () => clearTimeout(t);
   }, [load, q]);
 
-  const remove = async (p) => {
-    if (!window.confirm(`Remove ${p.name} from your list? This cannot be undone.`)) return;
+  const remove = async (p, event) => {
+    if (!isAgnezApprovedClick(event) && !window.confirm(`Remove ${p.name} from your list? This cannot be undone.`)) return;
     setRemoving('Removing from your list');
     try {
       await api(`/customers/${p.id}`, { method: 'DELETE' });
@@ -197,8 +198,8 @@ const Customers = () => {
       setRemoving('');
     }
   };
-  const removeAll = async () => {
-    if (!window.confirm('Delete EVERY customer from this app? This cannot be undone.')) return;
+  const removeAll = async (event) => {
+    if (!isAgnezApprovedClick(event) && !window.confirm('Delete EVERY customer from this app? This cannot be undone.')) return;
     setRemoving('Deleting every customer');
     try {
       const r = await api('/customers?confirm=true', { method: 'DELETE' });
@@ -291,7 +292,7 @@ const Customers = () => {
                   </td>
                   <td className="py-2.5 text-right">
                     <button type="button" onClick={() => setMode({ type: 'edit', person: p })} aria-label={`Edit ${p.name}`} className="inline-grid size-8 place-items-center rounded-lg hover:bg-ink/10"><Pencil size={15} /></button>
-                    <button type="button" onClick={() => remove(p)} aria-label={`Remove ${p.name}`} className="inline-grid size-8 place-items-center rounded-lg text-bad hover:bg-bad/10"><Trash2 size={15} /></button>
+                    <button type="button" onClick={(event) => remove(p, event)} aria-label={`Remove ${p.name}`} className="inline-grid size-8 place-items-center rounded-lg text-bad hover:bg-bad/10"><Trash2 size={15} /></button>
                   </td>
                 </tr>
               ))}

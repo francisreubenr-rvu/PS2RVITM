@@ -85,18 +85,18 @@ def test_no_key_is_503_and_the_brief_never_leaves(rig):
 
 def test_the_settings_switch_is_respected(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    c.put("/settings/toggles/groq", json={"enabled": False})
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    c.put("/settings/toggles/openrouter", json={"enabled": False})
     assert ask(c).status_code == 503
     assert Fake.calls == []
 
 
 def test_the_writer_gets_one_model_and_the_design_rules(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     ask(c)
     sent = Fake.calls[-1][1]["json"]
-    assert sent["model"] == brain.GROQ_MODEL == "qwen/qwen3.8-27b" and "gpt-oss" not in sent["model"]
+    assert sent["model"] == brain.TEXT_MODEL == "z-ai/glm-5.3-flash" and "gpt-oss" not in sent["model"]
     assert sent["response_format"] == {"type": "json_object"}
     system = sent["messages"][0]["content"]
     for rule in ("Section order, exactly", "one primary action", "unmistakable heading", "accent", "pairing",
@@ -107,7 +107,7 @@ def test_the_writer_gets_one_model_and_the_design_rules(rig):
 
 def test_the_writer_is_told_only_the_owner_s_real_details(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     ask(c)
     user = json.loads(Fake.calls[-1][1]["json"]["messages"][1]["content"])
     assert user["language"] == "English" and user["language_code"] == "en"
@@ -121,7 +121,7 @@ def test_a_missing_section_is_not_offered_to_the_writer(tmp_path, monkeypatch):
     monkeypatch.setattr(site.httpx, "AsyncClient", Fake)
     app, c = make_client(tmp_path)
     c.put("/business", json={"name": "Bare Shop"})  # no offer, no menu, no hours
-    monkeypatch.setenv("GROQ_API_KEY", "gk")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "gk")
     assert ask(c).status_code == 200
     user = json.loads(Fake.calls[-1][1]["json"]["messages"][1]["content"])
     assert user["sections_available"] == ["hero", "cta"] and user["approved_offer"] is None
@@ -129,10 +129,10 @@ def test_a_missing_section_is_not_offered_to_the_writer(tmp_path, monkeypatch):
 
 def test_the_page_uses_real_data_and_one_action(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     out = ask(c).json()
     page = out["html"]
-    assert out["model"] == "qwen/qwen3.8-27b" and out["site"]["style"] == "steve-jobs"
+    assert out["model"] == "z-ai/glm-5.3-flash" and out["site"]["style"] == "steve-jobs"
     assert out["site"]["sections"] == ["hero", "offer", "menu", "about", "hours", "cta"]
     assert out["site"]["fonts"]["heading"] == "Fraunces"
     # every fact on the page is the owner's: the approved offer, the menu prices, the address, one wa.me link per action
@@ -147,7 +147,7 @@ def test_the_page_uses_real_data_and_one_action(rig):
 
 def test_no_proof_is_ever_rendered(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     # the model tries to add proof sections and a proof claim; both are refused
     reply = dict(GOOD, sections=GOOD["sections"] + [
         {"kind": "testimonials", "heading": "Loved by 500 customers", "body": "Rated 5 stars."},
@@ -161,7 +161,7 @@ def test_no_proof_is_ever_rendered(rig):
 
 def test_the_design_tables_shape_is_enforced(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     # sections returned out of order, an invented kind, and a duplicate: all are re-ordered, dropped and de-duplicated
     reply = dict(GOOD, style="not-a-style", fonts="comic-sans", sections=[
         {"kind": "menu", "heading": "Menu"},
@@ -179,7 +179,7 @@ def test_the_design_tables_shape_is_enforced(rig):
 
 def test_a_page_without_a_hero_is_a_bad_reply(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     Fake.reply = groq_reply(dict(GOOD, sections=[{"kind": "about", "heading": "About"}]))
     r = ask(c)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "website_failed"
@@ -187,7 +187,7 @@ def test_a_page_without_a_hero_is_a_bad_reply(rig):
 
 def test_a_bad_reply_is_502(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     Fake.reply = groq_reply("just words, no json")
     r = ask(c)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "website_failed"
@@ -195,7 +195,7 @@ def test_a_bad_reply_is_502(rig):
 
 def test_a_provider_failure_is_reported(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     Fake.reply = httpx.Response(429, json={})
     r = ask(c)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "website_failed"
@@ -203,7 +203,7 @@ def test_a_provider_failure_is_reported(rig):
 
 def test_an_unknown_language_is_422(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     assert ask(c, lang="xx").status_code == 422
     assert Fake.calls == []
 
@@ -214,7 +214,7 @@ def test_no_phone_means_no_button_and_a_warning(tmp_path, monkeypatch):
     app, c = make_client(tmp_path)
     seed(c, app)
     c.put("/business", json={"name": "Brew Bandi", "about": {"en": "A small cafe."}})
-    monkeypatch.setenv("GROQ_API_KEY", "gk")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "gk")
     out = ask(c).json()
     assert "wa.me" not in out["html"] and 'class="btn' not in out["html"]
     assert any("WhatsApp number" in w for w in out["warnings"])
@@ -222,7 +222,7 @@ def test_no_phone_means_no_button_and_a_warning(tmp_path, monkeypatch):
 
 def test_brand_colours_win_over_the_model(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     c.put("/business", json={"palette": {"bg": "#101820", "ink": "#f5f5f5", "accent": "#ffb703", "soft": "#1b2733"}})
     out = ask(c).json()
     assert out["site"]["palette"]["background"] == "#101820" and out["site"]["palette"]["accent"] == "#ffb703"
@@ -237,7 +237,7 @@ def test_everything_the_owner_typed_is_escaped(tmp_path, monkeypatch):
     monkeypatch.setattr(site.httpx, "AsyncClient", Fake)
     app, c = make_client(tmp_path)
     c.put("/business", json={"name": "<img src=x onerror=alert(1)>", "menu": [{"name": "\"><i>y", "price": 5}]})
-    monkeypatch.setenv("GROQ_API_KEY", "gk")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "gk")
     page = ask(c).json()["html"]
     assert "<script>" not in page and "<img" not in page and "<b>x" not in page and "<i>y" not in page
     assert "&lt;script&gt;" in page and "Menu &amp; more" in page
@@ -245,7 +245,7 @@ def test_everything_the_owner_typed_is_escaped(tmp_path, monkeypatch):
 
 def test_kannada_gets_its_script_face(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     page = ask(c, lang="kn").json()["html"]
     assert 'lang="kn"' in page and "Noto+Sans+Kannada" in page
 

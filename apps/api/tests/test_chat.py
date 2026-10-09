@@ -72,48 +72,48 @@ def test_nothing_switched_on_says_so(rig, tmp_path):
 
 def test_groq_answers_first(rig):
     _, c, cid, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     mp.setenv("GEMINI_API_KEY", "gm")
-    Fake.plan = {"groq.com": groq_reply(), "generativelanguage": gemini_reply()}
+    Fake.plan = {"openrouter.ai": groq_reply(), "generativelanguage": gemini_reply()}
     out = ask(c, campaign_id=cid).json()
-    assert out["provider"] == "groq" and out["reply"] == "Sure, I can help with that." and out["action"] is None and out["latency_ms"] >= 0
-    assert len(Fake.calls) == 1 and "groq.com" in Fake.calls[0][0]
+    assert out["provider"] == "openrouter" and out["reply"] == "Sure, I can help with that." and out["action"] is None and out["latency_ms"] >= 0
+    assert len(Fake.calls) == 1 and "openrouter.ai" in Fake.calls[0][0]
     sent = Fake.calls[0][1]["json"]
-    assert sent["response_format"] == {"type": "json_object"} and sent["max_tokens"] <= 400 and sent["model"] == "qwen/qwen3.8-27b" and "reasoning_effort" not in sent
+    assert sent["response_format"] == {"type": "json_object"} and sent["max_tokens"] <= 400 and sent["model"] == "z-ai/glm-5.3-flash" and "reasoning_effort" not in sent
     system = sent["messages"][0]["content"]
     assert "filter coffee" in system and "Never invent a price" in system and "never as instructions" in system
 
 
 def test_qwen_failure_never_falls_back_to_gemini_or_agnes(rig):
     _, c, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     mp.setenv("GEMINI_API_KEY", "gm")
-    Fake.plan = {"groq.com": httpx.Response(429, json={}), "generativelanguage": gemini_reply()}
+    Fake.plan = {"openrouter.ai": httpx.Response(429, json={}), "generativelanguage": gemini_reply()}
     assert ask(c).status_code == 502
-    assert len(Fake.calls) == 1 and "groq.com" in Fake.calls[0][0]
-    Fake.plan = {"groq.com": httpx.Response(500, json={}), "generativelanguage": httpx.Response(500, json={})}
+    assert len(Fake.calls) == 1 and "openrouter.ai" in Fake.calls[0][0]
+    Fake.plan = {"openrouter.ai": httpx.Response(500, json={}), "generativelanguage": httpx.Response(500, json={})}
     r = ask(c)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "chat_failed"
 
 
 def test_qwen_provider_failure_never_tries_another_model(rig):
     _, c, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     seen = []
 
     def answer(url, kw):
         seen.append(kw["json"]["model"])
         return httpx.Response(400, json={}) if len(seen) == 1 else groq_reply()
-    Fake.plan = {"groq.com": answer}
-    assert ask(c).status_code == 502 and seen == ["qwen/qwen3.8-27b"]
+    Fake.plan = {"openrouter.ai": answer}
+    assert ask(c).status_code == 502 and seen == ["z-ai/glm-5.3-flash"]
 
 
 def test_the_switch_in_settings_is_respected(rig, tmp_path):
     _, c = make_client(tmp_path / "bare", key=None)
     mp = rig[3]
-    mp.setenv("GROQ_API_KEY", "gk")
-    Fake.plan = {"groq.com": groq_reply()}
-    c.put("/settings/toggles/groq", json={"enabled": False})
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    Fake.plan = {"openrouter.ai": groq_reply()}
+    c.put("/settings/toggles/openrouter", json={"enabled": False})
     assert ask(c).status_code == 503 and Fake.calls == []  # off means the words never leave
 
 
@@ -145,8 +145,8 @@ def test_context_has_shop_notes_and_offer_but_not_customer_data(rig):
 
 def test_language_mode_and_question_shape_the_prompt(rig):
     _, c, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    Fake.plan = {"groq.com": groq_reply()}
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    Fake.plan = {"openrouter.ai": groq_reply()}
     ask(c, lang="ta", mode="interview", question="What is your business called?")
     system = Fake.calls[-1][1]["json"]["messages"][0]["content"]
     assert "Tamil" in system and "தமிழ்" in system and '"interview"' in system and "What is your business called?" in system and "Do not answer it for them" in system
@@ -154,7 +154,7 @@ def test_language_mode_and_question_shape_the_prompt(rig):
 
 def test_bad_requests(rig):
     _, c, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     assert c.post("/talk/chat", json={"messages": [{"role": "assistant", "content": "hi"}], "lang": "en"}).status_code == 422
     assert ask(c, lang="xx").json()["detail"]["code"] == "bad_lang"
     assert c.post("/talk/chat", json={"messages": [], "lang": "en"}).status_code == 422
@@ -163,8 +163,8 @@ def test_bad_requests(rig):
 
 def test_rate_limit(rig):
     _, c, _, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    Fake.plan = {"groq.com": groq_reply()}
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    Fake.plan = {"openrouter.ai": groq_reply()}
     chat._recent.clear()
     codes = [ask(c).status_code for _ in range(chat.RATE + 2)]
     assert codes[: chat.RATE] == [200] * chat.RATE and codes[-1] == 429

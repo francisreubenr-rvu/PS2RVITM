@@ -10,11 +10,11 @@ import { navigate } from '../../lib/router';
 const AgnezDock = ({ hideIdle = false }) => {
   const t = useTalkContext();
   const a = t.agnez;
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => window.innerWidth >= 1024);
   const live = a.status === 'live' && !t.ended;
   const connecting = a.status === 'connecting';
   const speaking = live && a.mode === 'speaking' && !a.paused;
-  const state = !live ? (connecting ? 'Opening the call' : 'Talk to Agnez') : a.paused ? 'Paused' : a.muted ? 'Muted' : speaking ? 'Speaking' : 'Listening';
+  const state = live && a.textOnly ? 'Text conversation' : !live ? (connecting ? 'Opening the call' : 'Talk to Agnez') : a.paused ? 'Paused' : a.muted ? 'Muted' : speaking ? 'Speaking' : 'Listening';
   const lastAi = [...t.messages].reverse().find((m) => m.role === 'ai');
   const lastYou = [...t.messages].reverse().find((m) => m.role === 'user');
   const orbState = a.paused || a.muted ? 'shaping' : speaking ? 'composing' : 'listening';
@@ -37,10 +37,11 @@ const AgnezDock = ({ hideIdle = false }) => {
         <button type="button" onClick={() => setOpen((v) => !v)} className={`${ring} relative grid size-14 shrink-0 place-items-center rounded-full bg-black`} aria-label={open ? 'Hide Agnez' : 'Show Agnez'}>
           <span className="grid size-full place-items-center [&_canvas]:!size-12"><ThinkingOrb key={orbState} state={orbState} size={64} theme="dark" /></span>
         </button>
-        <div className="min-w-0 flex-1">
+        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => navigate('voice')} aria-label={!open ? 'Open the full conversation' : undefined}>
           <p className="text-sm font-semibold">{state}</p>
-          <p className="truncate text-xs text-white/55">{a.paused ? 'On hold. Resume to keep going.' : a.muted ? 'Your microphone is off.' : speaking ? 'Talk over her to interrupt.' : 'Just talk. Say "open customers" to go there.'}</p>
-        </div>
+          <p className="truncate text-xs text-white/55">{a.paused ? 'On hold. Resume to keep going.' : a.muted ? 'Your microphone is off.' : speaking ? 'Talk over her to interrupt.' : a.textOnly ? 'Your microphone is not in use.' : 'Just talk. Say "open customers" to go there.'}</p>
+        </button>
+        {!open && <button type="button" onClick={t.endCall} aria-label="End" className="grid size-9 shrink-0 place-items-center rounded-full bg-bad text-white"><PhoneOff size={15} /></button>}
         <button type="button" onClick={() => setOpen((v) => !v)} className="grid size-8 place-items-center rounded-full text-white/60 hover:bg-white/10" aria-label={open ? 'Collapse' : 'Expand'} aria-expanded={open}>
           <ChevronDown size={16} className={open ? '' : 'rotate-180'} />
         </button>

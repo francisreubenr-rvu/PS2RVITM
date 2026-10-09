@@ -263,3 +263,15 @@ def test_grow_followers_with_no_offer_skips_the_item_question(tmp_path):
     assert session["question"]["field"] == "offer_type"
     session = say(client, sid, choices=["no_offer"])
     assert session["question"]["field"] == "start_date"
+
+
+def test_spoken_city_and_state_do_not_require_an_unstated_locality():
+    import asyncio
+    from datetime import date
+    from app.interview import SCRIPT, interpret
+    class MustNotAskModel:
+        async def chat(self, *args, **kwargs):
+            raise AssertionError("The owner's explicit location must not be rejected by a model")
+    question = next(q for q in SCRIPT if q.field == "area")
+    reading = asyncio.run(interpret(question, "It's in Bangalore, Karnataka.", [], "voice", date(2026, 10, 10), MustNotAskModel()))
+    assert reading.status == "accepted" and reading.value == "Bangalore, Karnataka."

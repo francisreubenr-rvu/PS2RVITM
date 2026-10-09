@@ -233,8 +233,8 @@ def test_text_provider_is_fixed_and_reports_real_groq_state(tmp_path, monkeypatc
     c = client(tmp_path)
     assert c.put("/settings/providers/text",json={"provider":"agnes","api_key":"unused"}).status_code == 409
     row=c.get("/settings/providers").json()["providers"][0]
-    assert row["provider"] == "groq" and row["model"] == "qwen/qwen3.8-27b" and row["active"] is False
-    monkeypatch.setenv("GROQ_API_KEY","test-key")
+    assert row["provider"] == "openrouter" and row["model"] == "z-ai/glm-5.3-flash" and row["active"] is False
+    monkeypatch.setenv("OPENROUTER_API_KEY","test-key")
     assert c.get("/settings/providers").json()["providers"][0]["active"] is True
-    c.put("/settings/toggles/groq",json={"enabled":False})
+    c.put("/settings/toggles/openrouter",json={"enabled":False})
     assert c.get("/settings/providers").json()["providers"][0]["active"] is False

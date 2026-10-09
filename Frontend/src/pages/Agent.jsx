@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Gauge, Bot, Brain, Cog, UserRound, Check, CircleAlert, SkipForward, ArrowRight, Mic, Square, ChevronDown } from 'lucide-react';
-import { createAgentRun, tickAgentRun, listAgentRuns, confirmAgentStep, skipAgentStep, runAutopilot, orchestrate } from '../campaign/lib/api';
-import { runActions } from '../campaign/lib/orchestrate';
+import { createAgentRun, tickAgentRun, listAgentRuns, confirmAgentStep, skipAgentStep, runAutopilot } from '../campaign/lib/api';
+import { openTalk } from '../components/talk/useTalk';
 import { LANGS, FIELD_LABEL } from '../campaign/lib/format';
 import { useVoiceInput } from '../campaign/lib/voice';
 import { go, setCurrent, useCurrent } from '../campaign/lib/current';
-import { navigate, useRoute } from '../lib/router';
+import { navigate } from '../lib/router';
 import ThinkingOrb, { OrbCursor, OrbLoader, OrbOverlay } from '../orb/orbPresence';
 
 const KEY = 'll-agent-run';
@@ -211,9 +211,8 @@ const Banner = ({ run }) => {
   );
 };
 
-// Tell me what to do: one utterance in, Agnez answers, and the app runs the returned actions with the calls it already has.
+// Hand the owner's actual request to the persistent native Agnez conversation.
 const Tell = ({ campaignId }) => {
-  const { slug } = useRoute();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [say, setSay] = useState('');
@@ -228,9 +227,8 @@ const Tell = ({ campaignId }) => {
     setSay('');
     setResults(null);
     try {
-      const out = await orchestrate(utterance, { screen: slug, campaign_id: campaignId });
-      setSay(out.say || '');
-      setResults(await runActions(out.actions || [], { campaign_id: campaignId }));
+      if(campaignId)setCurrent({id:campaignId});
+      openTalk(utterance);
       setText('');
     } catch (e) {
       setError(e.message);
@@ -243,7 +241,7 @@ const Tell = ({ campaignId }) => {
   return (
     <div aria-label="Tell Agnez what to do">
       <h3 className="font-semibold">Tell Agnez what to do</h3>
-      <p className="mt-1 text-sm text-ink/60">Say or type a step: “lock the plan”, “write the campaign”, “open the dashboard”. Agnez answers and the app does it with the buttons it already has, still stopping at the steps that need you.</p>
+      <p className="mt-1 text-sm text-ink/60">Say or type what you want to do. Agnez opens the right screen, uses its real controls, and asks before consequential actions.</p>
       <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Tell Agnez what to do">
         <input
           value={mic.interim && (mic.listening || mic.transcribing) ? `${text} ${mic.interim}`.trim() : text}

@@ -1,4 +1,4 @@
-"""brain: one in-app reasoning model (Groq) that turns an owner's utterance plus app state into bounded app actions.
+"""brain: one in-app reasoning model (OpenRouter) that turns an owner's utterance plus app state into bounded app actions.
 
 The model is told the app's real screens and the routes each action maps to, and it may return only action types the
 app can act on. Anything else, or any reply that is not one JSON object, is a bad reply and is never acted on. The model
@@ -15,16 +15,14 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from app import extras
-from app.config import TEXT_MODEL
+from app.config import TEXT_MODEL, TEXT_PROVIDER, TEXT_URL, text_api_key, text_request
 from app.db import Database
 from app.media import fail
 from app.worker import parse_json_object
 
 router = APIRouter()
 
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-# One model, fixed. GROQ_CHAT_MODEL wins if set; the default is the app's own reasoning model.
-GROQ_MODEL = TEXT_MODEL
+# One fixed model for every text reasoning path.
 # The only action types the app can act on. Anything else is a bad reply, never invented.
 ACTION_TYPES = (
     "navigate",
@@ -84,42 +82,42 @@ def ensure_schema(db: Database) -> None:
 def parse_reply(content: Any) -> dict[str, Any]:
     """Strict: the model must return one object with a say string and a bounded action list. Junk raises."""
     if not isinstance(content, str):
-        raise BrainBadReply("Groq reply was not text")
+        raise BrainBadReply("OpenRouter reply was not text")
     try:
         data = parse_json_object(content)
     except (ValueError, json.JSONDecodeError) as exc:
-        raise BrainBadReply("Groq reply was not JSON") from exc
+        raise BrainBadReply("OpenRouter reply was not JSON") from exc
     say = data.get("say")
     if not isinstance(say, str):
-        raise BrainBadReply("Groq reply had no say string")
+        raise BrainBadReply("OpenRouter reply had no say string")
     raw_actions = data.get("actions", [])
     if not isinstance(raw_actions, list):
-        raise BrainBadReply("Groq reply actions was not a list")
+        raise BrainBadReply("OpenRouter reply actions was not a list")
     actions: list[dict[str, Any]] = []
     for action in raw_actions:
         if not isinstance(action, dict):
-            raise BrainBadReply("Groq action was not an object")
+            raise BrainBadReply("OpenRouter action was not an object")
         kind = action.get("type")
         if kind not in ACTION_TYPES:
-            raise BrainBadReply(f"Groq action type {kind!r} is not in the vocabulary")
+            raise BrainBadReply(f"OpenRouter action type {kind!r} is not in the vocabulary")
         params = action.get("params", {})
         if not isinstance(params, dict):
-            raise BrainBadReply("Groq action params was not an object")
+            raise BrainBadReply("OpenRouter action params was not an object")
         actions.append({"type": kind, "params": params})
     return {"say": say, "actions": actions}
 
 
 def _require_key() -> str:
-    key = (os.environ.get("GROQ_API_KEY") or "").strip()
+    key = text_api_key()
     if not key:
-        raise BrainNotConfigured("GROQ_API_KEY is not set")
+        raise BrainNotConfigured("OPENROUTER_API_KEY is not set")
     return key
 
 
 async def orchestrate(utterance: str, state: dict | None) -> dict[str, Any]:
-    """Ask Groq for the next step. Raises BrainNotConfigured, BrainBadReply or BrainError."""
+    """Ask OpenRouter for the next step. Raises BrainNotConfigured, BrainBadReply or BrainError."""
     payload = {
-        "model": GROQ_MODEL,
+        "model": TEXT_MODEL,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps({"utterance": utterance, "state": state or {}}, ensure_ascii=False)},
@@ -130,20 +128,20 @@ async def orchestrate(utterance: str, state: dict | None) -> dict[str, Any]:
     }
     headers = {"Authorization": f"Bearer {_require_key()}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=60) as client:
-        response = await client.post(GROQ_URL, headers=headers, json=payload)
+        response = await client.post(TEXT_URL, headers=headers, json=text_request(payload))
     if response.status_code >= 400:
-        raise BrainError(f"Groq {response.status_code}: {response.text[:300]}")
+        raise BrainError(f"OpenRouter said {response.status_code}")
     try:
         content = response.json()["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
-        raise BrainBadReply("Groq response had no message content") from exc
+        raise BrainBadReply("OpenRouter response had no message content") from exc
     return parse_reply(content)
 
 
 @router.post("/agent/orchestrate")
 async def orchestrate_route(body: OrchestrateIn, request: Request) -> dict[str, Any]:
-    if not extras.toggle_state(request.app.state.db, "groq")["active"]:
-        raise fail("brain_not_configured", "The Groq model is off or has no key. Switch it on in Settings.", 503)
+    if not extras.toggle_state(request.app.state.db, "openrouter")["active"]:
+        raise fail("brain_not_configured", "The OpenRouter model is off or has no key. Switch it on in Settings.", 503)
     try:
         return await orchestrate(body.utterance, body.state)
     except BrainNotConfigured as exc:

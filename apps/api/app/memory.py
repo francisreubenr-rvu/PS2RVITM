@@ -413,20 +413,21 @@ TIDY_PROMPT = (
 
 
 async def tidy_with_model(text: str) -> list[dict[str, str]]:
-    """Ask the app's one reasoning model (Groq, brain.GROQ_MODEL) to tidy raw text. Raises brain.BrainNotConfigured, BrainBadReply or BrainError."""
+    """Ask the app's one reasoning model (OpenRouter, brain.TEXT_MODEL) to tidy raw text. Raises brain.BrainNotConfigured, BrainBadReply or BrainError."""
     import httpx
     from app import brain
-    payload = {"model": brain.GROQ_MODEL, "temperature": 0.1, "max_tokens": 3000, "response_format": {"type": "json_object"},
+    from app.config import text_request
+    payload = {"model": brain.TEXT_MODEL, "temperature": 0.1, "max_tokens": 3000, "response_format": {"type": "json_object"},
                "messages": [{"role": "system", "content": TIDY_PROMPT}, {"role": "user", "content": text[:12000]}]}
     headers = {"Authorization": f"Bearer {brain._require_key()}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(brain.GROQ_URL, headers=headers, json=payload)
+        r = await client.post(brain.TEXT_URL, headers=headers, json=text_request(payload))
     if r.status_code >= 400:
-        raise brain.BrainError(f"Groq {r.status_code}")
+        raise brain.BrainError(f"OpenRouter {r.status_code}")
     try:
         rows = brain.parse_json_object(r.json()["choices"][0]["message"]["content"])["entries"]
     except (KeyError, IndexError, TypeError, ValueError) as exc:
-        raise brain.BrainBadReply("Groq did not return a list of entries") from exc
+        raise brain.BrainBadReply("OpenRouter did not return a list of entries") from exc
     out = [_draft(str(x.get("title") or ""), str(x.get("body") or "")) for x in rows if isinstance(x, dict)] if isinstance(rows, list) else []
     return [d for d in out if d][:MAX_IMPORT_ENTRIES]
 
@@ -438,8 +439,8 @@ async def import_preview(body: ImportPreviewIn, request: Request) -> dict:
     connections._require_owner(request)
     method = "split"
     if body.tidy:
-        if not extras.toggle_state(request.app.state.db, "groq")["active"]:
-            raise fail("brain_not_configured", "The Groq model is off or has no key. Switch it on in Settings, or import without tidying.", 503)
+        if not extras.toggle_state(request.app.state.db, "openrouter")["active"]:
+            raise fail("brain_not_configured", "The OpenRouter model is off or has no key. Switch it on in Settings, or import without tidying.", 503)
         try:
             entries = await tidy_with_model(body.text)
             method = "model"

@@ -208,8 +208,8 @@ def test_tidy_uses_the_one_groq_model_and_respects_the_switch(rig, monkeypatch):
 
     monkeypatch.setattr(brain.httpx, "AsyncClient", Fake)
     assert c.post("/memory/import/preview", json={"text": "x", "tidy": True}).json()["detail"]["code"] == "brain_not_configured"  # no key
-    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     got = c.post("/memory/import/preview", json={"text": "I open at 8am, as I said.", "tidy": True}).json()
-    assert got["method"] == "model" and got["entries"][0]["title"] == "Opens early" and seen["model"] == brain.GROQ_MODEL == "qwen/qwen3.8-27b"
-    c.put("/settings/toggles/groq", json={"enabled": False})
+    assert got["method"] == "model" and got["entries"][0]["title"] == "Opens early" and seen["model"] == brain.TEXT_MODEL == "z-ai/glm-5.3-flash"
+    c.put("/settings/toggles/openrouter", json={"enabled": False})
     assert c.post("/memory/import/preview", json={"text": "x", "tidy": True}).status_code == 503

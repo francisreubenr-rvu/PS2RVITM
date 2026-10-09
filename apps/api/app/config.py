@@ -55,7 +55,20 @@ def _blank_early(name: str) -> str | None:
 
 # Read the repo .env before the model names below are fixed. Real environment variables still win.
 load_env_file(ROOT / ".env")
-TEXT_MODEL = "qwen/qwen3.8-27b"
+TEXT_MODEL = "z-ai/glm-5.3-flash"
+TEXT_PROVIDER = "openrouter"
+TEXT_URL = "https://openrouter.ai/api/v1/chat/completions"
+TEXT_KEY_ENV = "OPENROUTER_API_KEY"
+
+
+def text_api_key() -> str:
+    return (os.environ.get(TEXT_KEY_ENV) or "").strip()
+
+
+def text_request(payload: dict) -> dict:
+    # GLM endpoints require reasoning. Keep its low-effort trace out of visible/spoken content.
+    # Route only to providers that support the requested parameters.
+    return {**payload, "model": TEXT_MODEL, "provider": {"require_parameters": True}, "reasoning": {"effort": "low", "exclude": True}}
 IMAGE_MODEL = _blank_early("IMAGE_MODEL") or "agnes-image-2.5-flash"
 VIDEO_MODEL = _blank_early("VIDEO_MODEL") or "agnes-video-2.5-flash"
 

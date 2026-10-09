@@ -92,18 +92,14 @@ export function useBriefing() {
       const base = {
         ...transport,
         clientTools: tools,
+        overrides: {agent:{language:lang==='hinglish'?'hi':lang,firstMessage:lang==='hi'?'अपने व्यवसाय के बारे में बताइए। आप क्या बेचते हैं?':lang==='kn'?'ನಿಮ್ಮ ವ್ಯಾಪಾರದ ಬಗ್ಗೆ ಹೇಳಿ. ನೀವು ಏನು ಮಾರುತ್ತೀರಿ?':'Tell me about your business. What do you sell?',prompt:{prompt:'This is GrowIt structured business-memory briefing. Ask one business question at a time about what the owner sells, location, hours, audience, rules, history and goals. Record only their stated facts with record_fact. Correct with revise_fact. Do not ask personal-life questions or invent facts. Use pause_briefing, resume_briefing and complete_briefing as appropriate. Do not call platform action tools here. If the owner requests app operations, complete the briefing so they can return to the main Agnez assistant. Never emit bracketed stage directions.'}}},
         onConnect: () => setStatus('live'),
         onDisconnect: () => { if (!closing.current) setStatus((s) => (s === 'live' || s === 'connecting' ? 'done' : s)); },
         onError: (m) => { setError(String(m || 'The briefing hit a problem.')); },
         onMessage: ({ message, source }) => { if (message) setLines((l) => [...l.slice(-5), { who: source === 'user' ? 'you' : 'agent', text: message }]); },
         onModeChange: ({ mode: m }) => setMode(m),
       };
-      try {
-        conv.current = await Conversation.startSession(lang === 'en' ? base : { ...base, overrides: { agent: { language: lang } } });
-      } catch (e) {
-        if (lang === 'en') throw e;
-        conv.current = await Conversation.startSession(base); // that language is not enabled on the agent: use its default
-      }
+      conv.current = await Conversation.startSession(base);
       setStatus('live');
     } catch (e) {
       const denied = /permission|denied|NotAllowed/i.test(String(e?.name || e?.message));

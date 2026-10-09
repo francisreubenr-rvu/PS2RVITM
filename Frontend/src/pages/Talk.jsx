@@ -21,7 +21,7 @@ const Bubble = ({ m, onReplay }) => {
     >
       <span className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${ai ? 'rounded-tl-md bg-ink/6 text-ink' : 'rounded-tr-md bg-accent text-on-accent'}`}>{m.text}</span>
       <span className="flex items-center gap-2 px-1 text-[11px] text-ink/45">
-        {ai ? (m.provider ? `GrowIt · ${m.provider === 'groq' ? 'Groq' : m.provider === 'gemini' ? 'Gemini' : m.provider === 'agnez' ? 'Agnez' : 'Agnes'}${m.ms ? ` · ${(m.ms / 1000).toFixed(1)}s` : ''}` : 'GrowIt') : m.source === 'typed' ? 'You typed' : m.source === 'tap' ? 'You tapped' : 'You said'}
+        {ai ? (m.provider ? `GrowIt · ${m.provider === 'openrouter' ? 'OpenRouter' : m.provider === 'groq' ? 'Groq' : m.provider === 'gemini' ? 'Gemini' : m.provider === 'agnez' ? 'Agnez' : 'Agnes'}${m.ms ? ` · ${(m.ms / 1000).toFixed(1)}s` : ''}` : 'GrowIt') : m.source === 'typed' ? 'You typed' : m.source === 'tap' ? 'You tapped' : 'You said'}
         {ai && <button type="button" onClick={() => onReplay(m.text)} aria-label="Say it again" className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:bg-ink/8"><Volume2 size={11} /> again</button>}
       </span>
     </motion.li>
@@ -51,7 +51,7 @@ const TalkScreen = ({ id }) => {
   };
   const chip = 'btn-ghost h-9 px-3.5 text-sm';
   const agnezOff = Boolean(t.agnez.availability && t.agnez.availability.available === false) || !t.mic.supported;
-  const caption = t.ended ? 'The call has ended. Reconnect to talk again, or type below.' : t.mic.speaking ? 'Agnez is speaking. Talk over her to interrupt.' : t.mic.listening ? 'Listening. Just talk.' : t.mic.transcribing ? 'Opening the voice call…' : t.lastHeard ? `Heard: “${t.lastHeard}”` : '';
+  const caption = t.agnez.textOnly && !t.ended ? 'Text conversation. Your microphone is not in use.' : t.ended ? 'The call has ended. Reconnect to talk again, or type below.' : t.mic.speaking ? 'Agnez is speaking. Talk over her to interrupt.' : t.mic.listening ? 'Listening. Just talk.' : t.mic.transcribing ? 'Opening the voice call…' : t.lastHeard ? `Heard: “${t.lastHeard}”` : '';
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">

@@ -1,11 +1,11 @@
-"""launch: the "no business yet" path. The Groq Qwen planner devises a few pathways from the answers, the owner picks one, and
-then ideas, names and taglines come back from Qwen, ending in a hand-off to the agent.
+"""launch: the "no business yet" path. The OpenRouter GLM planner devises a few pathways from the answers, the owner picks one, and
+then ideas, names and taglines come back from GLM 5.3 Flash, ending in a hand-off to the agent.
 
 Everything a model returns here is a suggestion. Costs are model estimates, not advice, and the response says so. Kannada and
 Hindi taglines are drafts for a native speaker. The hand-off sentence is composed by code from what the owner picked, so the
 agent reads it like any other idea and still stops at the plan lock.
 
-All reasoning steps talk to Groq, and it uses one model: qwen (GROQ_CHAT_MODEL wins if set). When Groq is
+All reasoning steps talk to OpenRouter, and it uses one model: GLM 5.3 Flash (fixed). When OpenRouter is
 switched off in Settings or has no key, the route answers 503 "not configured" and the screen says so, rather than inventing a plan.
 """
 from __future__ import annotations
@@ -18,6 +18,7 @@ import httpx
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from app.config import TEXT_PROVIDER, TEXT_URL, text_api_key, text_request
 from app import brain, extras
 from app.agnes import AgnesError
 from app.media import fail
@@ -140,23 +141,23 @@ def clean_pathways(raw: Any) -> list[dict[str, Any]]:
 
 
 async def _ask(request: Request, messages: list[dict[str, str]], kind: str) -> Any:
-    if not extras.toggle_state(request.app.state.db, "groq")["active"]:
-        raise fail("brain_not_configured", "The Groq planner is off or has no key. Switch Groq on in Settings, then try again.", 503)
+    if not extras.toggle_state(request.app.state.db, "openrouter")["active"]:
+        raise fail("brain_not_configured", "The OpenRouter planner is off or has no key. Switch OpenRouter on in Settings, then try again.", 503)
     return await _qwen(messages[0]["content"], json.loads(messages[1]["content"]), 2200)
 
 
 async def _qwen(system: str, user: dict[str, Any], max_tokens: int) -> dict[str, Any]:
-    """One call to the Groq Qwen planner. Raises a clear 503 when Groq is off or unkeyed, 502 when it fails or answers junk."""
-    key = (os.environ.get("GROQ_API_KEY") or "").strip()
+    """One call to the OpenRouter GLM planner. Raises a clear 503 when OpenRouter is off or unkeyed, 502 when it fails or answers junk."""
+    key = text_api_key()
     if not key:
-        raise fail("brain_not_configured", "The Groq planner has no key on the server. Add one to switch it on.", 503)
-    payload = {"model": brain.GROQ_MODEL,  # one model only: qwen, with GROQ_CHAT_MODEL as the override
+        raise fail("brain_not_configured", "The OpenRouter planner has no key on the server. Add one to switch it on.", 503)
+    payload = {"model": brain.TEXT_MODEL,  # one fixed model, no model fallback
                "messages": [{"role": "system", "content": system},
                             {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
                "temperature": 0.5, "max_tokens": max_tokens, "response_format": {"type": "json_object"}}
     try:
         async with httpx.AsyncClient(timeout=45) as client:
-            response = await client.post(brain.GROQ_URL, headers={"Authorization": f"Bearer {key}"}, json=payload)
+            response = await client.post(brain.TEXT_URL, headers={"Authorization": f"Bearer {key}"}, json=text_request(payload))
     except httpx.HTTPError as exc:
         raise fail("pathways_failed", f"The planner did not answer just now ({type(exc).__name__}). Try again.", 502) from exc
     if response.status_code >= 400:
@@ -205,9 +206,9 @@ PATHWAY_SHAPE = {"pathways": [{
 
 @router.post("/launch/pathways")
 async def pathways(body: PathwaysIn, request: Request) -> dict:
-    """The planner step: the moment the form is submitted, Groq Qwen turns the answers into three or four pathways to choose from."""
-    if not extras.toggle_state(request.app.state.db, "groq")["active"]:
-        raise fail("brain_not_configured", "The Groq planner is off or has no key. Switch Groq on in Settings, then try again.", 503)
+    """The planner step: the moment the form is submitted, OpenRouter GLM turns the answers into three or four pathways to choose from."""
+    if not extras.toggle_state(request.app.state.db, "openrouter")["active"]:
+        raise fail("brain_not_configured", "The OpenRouter planner is off or has no key. Switch OpenRouter on in Settings, then try again.", 503)
     shape = json.dumps(PATHWAY_SHAPE)
     system = (
         "You are the GrowIt planner for a first-time owner in India who has no business yet. Read their skills, the money they can put "
@@ -219,7 +220,7 @@ async def pathways(body: PathwaysIn, request: Request) -> dict:
         found = clean_pathways((await _qwen(system, body.model_dump(), 1800)).get("pathways"))
     if len(found) < 3:
         raise fail("pathways_failed", "No usable pathways came back. Try again.", 502)
-    return {"pathways": found, "model": brain.GROQ_MODEL, "disclaimer": DISCLAIMER}
+    return {"pathways": found, "model": brain.TEXT_MODEL, "disclaimer": DISCLAIMER}
 
 
 @router.post("/launch/names")

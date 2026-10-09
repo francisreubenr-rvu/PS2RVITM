@@ -1,3 +1,4 @@
+import { isAgnezApprovedClick } from '../../voice/approvedClick';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, approveAsset, createLink, makeVideo, generate, getAssetState, getBoard, getPlan, logOutreach, makeImage, mediaUrl, saveCopy, sendEmail, uploadRender, prepareWhatsApp, uploadShort, customerRecipients, sendEmailToCustomers } from "../lib/api";
 import { canvasBlob } from "../lib/compose";
@@ -141,10 +142,10 @@ function AssetCard({ asset, state, plan, business, onChanged, onMakeImage, image
     onChanged();
   });
 
-  const emailCustomers = () => run("emailc", async () => {
+  const emailCustomers = (event: unknown) => run("emailc", async () => {
     const list = await customerRecipients("email");
     if (!list.count) { setNote("No customer has agreed to email yet. Add people, and tick their consent, on the Customers screen."); return; }
-    if (!window.confirm(`Send this email to ${list.count} customer${list.count === 1 ? "" : "s"} who agreed to email?`)) return;
+    if (!isAgnezApprovedClick(event) && !window.confirm(`Send this email to ${list.count} customer${list.count === 1 ? "" : "s"} who agreed to email?`)) return;
     await ensureLink();
     try {
       const res = await sendEmailToCustomers(asset.id);
@@ -212,7 +213,7 @@ function AssetCard({ asset, state, plan, business, onChanged, onMakeImage, image
   });
 
   const video = () => run("video", async () => {
-    await makeVideo(asset.id, aspect);
+    await makeVideo(asset.id, aspect, motion);
     onChanged();
     setNote("The video is being made. This can take a few minutes.");
   });

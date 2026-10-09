@@ -83,7 +83,7 @@ def test_owner_events_are_stored_and_validated(tmp_path):
 # ---- launch
 
 def qwen_reply(monkeypatch, reply):
-    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     async def answer(*args):
         return reply
     monkeypatch.setattr(launch, "_qwen", answer)

@@ -13,7 +13,7 @@ from app import brandgen
 from app import site
 from app import videoprompt
 from app.agnes import Agnes
-from app.config import Settings, load_settings
+from app.config import Settings, load_settings, TEXT_MODEL, TEXT_PROVIDER
 from app.db import Database
 from app.lab.voice import vosk_stt
 from app.queue import Buckets
@@ -81,6 +81,9 @@ def health(request: Request) -> dict:
         "agnes_configured": bool(settings.agnes_api_key),
         "agnes_key_pool": settings.agnes_key_pool,
         "rpm": {"text": settings.text_rpm, "image": settings.image_rpm, "video": settings.video_rpm},
+        "text_provider": TEXT_PROVIDER,
+        "text_model": TEXT_MODEL,
+        "text_active": extras.toggle_state(request.app.state.db, TEXT_PROVIDER)["active"],
         "stt": "browser_or_typed_transcript",
         "stt_offline": sorted(vosk_stt.available_languages()),
         "db": "sqlite",

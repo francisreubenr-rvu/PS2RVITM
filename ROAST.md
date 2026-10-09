@@ -1,5 +1,19 @@
 # Roast loop: GrowIt
 
+## Resume checklist: 2026-10-10
+
+- [x] Agnez: verify live override permissions, prompt and tools. Workflow patch verified by fresh GET.
+- [x] Voice: session lifecycle fixes; real controlled dictation and Talk SAY transcripts/controls at 1440/390. Human audio/barge-in not checked.
+- [x] Validation: backend 635 passed, 1 skipped; final frontend build passed.
+- [x] Model comparison: docs/model-swap.md; no model change.
+- [x] Recorded completed work and actual remaining blockers in progress.md.
+
+### Resume findings
+
+- [x] Frontend/src/voice/agnez.jsx:136: stop during token minting can reopen the cancelled call; mode switches leave previous speech queued. Generation guards applied; delayed real-token cancellation passed at both widths.
+- [x] Frontend/src/campaign/lib/voice.ts:45: stop or unmount during token minting can reopen dictation and deliver a late transcript. Generation guard applied; live verification pending.
+- [x] Frontend/src/components/talk/voiceIO.js:21: Talk omits configured client tools from the live agent. Added explicit local-control responses; real full SAY transcript and controls checked at both widths.
+
 ## Codex continuation: 2026-10-09
 
 - [ ] T10/T14: Agnes brand generation, upload, palettes, dictation. Inspect existing edits, fix evidenced defects, verify.
@@ -33,3 +47,35 @@
 - [x] Frontend/src/pages/Studio.jsx:76: selectable unselected cards still read disabled. Raised warm-surface contrast; screenshots reviewed at both widths.
 
 Per-deliverable gates and unavoidable live blockers recorded in progress.md. Full Talk audio probe did not run. Final mode-switch fix awaits final build/suite.
+
+### Narrow re-review
+
+Session cancellation, mode switching and configured tools reviewed after fixes. No additional code finding in this scope. LiveKit WS1006 teardown diagnostic remains during intentional hangup; human microphone/barge-in acceptance remains open.
+
+## GLM experiment checklist: 2026-10-10
+
+- [x] Single OpenRouter GLM provider across all text reasoning paths, no model fallback.
+- [x] Selected model/provider reflected in health and Settings, Groq STT separate. Browser acceptance pending.
+- [x] GrowIt API restarted; real provider200 and3read-only app paths verified.
+- [x] Backend637passed/1skipped, frontend build; desktop1440/mobile390Settings real toggle off/on, zero errors/overflow, screenshots inspected.
+- [x] Outcomes recorded in progress.md; Agnez preserved and2media regression tests pass.
+
+## English transcription and speech cutoff: 2026-10-10
+
+- [x] Trace actual provider ASR/language and faulty conversation turns before fixing.
+- [x] Reproduce output cutoff with browser audio measurements, not transcript alone.
+- [x] Fix proven language/audio/interview defects; regression checks.
+- [x] Controlled multi-turn speech, repeat, location and interruption at desktop/mobile.
+- [x] Build/backend validation and current limitations recorded.
+
+## Final platform re-review
+
+- [x] Mobile output gating reproduced and removed; full voiced output reaches audible stream and final spoken question confirmed by Scribe.
+- [x] City/state response parity, repeat and authoritative owner answer sequence verified.
+- [x] Normal operator request vendor false-positive termination diagnosed from provider metadata; only that terminator disabled, remaining provider settings preserved and tool-level authorization tested.
+- [x] Typed fallback permission failure now settles immediately; signed text WebSocket reaches real native action with no microphone request in fallback.
+- [x] Agent handoff captures actual owner request; mobile compact dock and End verified.
+
+Final review found no additional blocking defect in the exercised scope. Historical LiveKit teardown logging is retained in earlier notes; final denied-mic/handoff console collections were empty. Human microphone quality, production and paid/external API effects remain unverified.
+
+- [x] Final material approval bridge: one-use exact click proof accepted; identity/replay/route failures rejected on actual reversible Settings at both widths. Four browser-confirm flows source wired without executing deletion/email. Final registry and combining-mark confirmation checks passed. Build380ms, diff clean.

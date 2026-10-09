@@ -34,6 +34,7 @@ function Inner({ children }) {
   const gateOpen = useRef(false);
   const userVolume = useRef(1); // the "Agnez speaks" switch
   const [muted, setMutedState] = useState(false); // the person's microphone is off
+  const [textOnlySession, setTextOnlySession] = useState(false);
   const [paused, setPausedState] = useState(false); // the call is on hold: no one hears, nothing is spoken
   const mutedRef = useRef(false);
   const pausedRef = useRef(false);
@@ -42,28 +43,42 @@ function Inner({ children }) {
   const queue = useRef(Promise.resolve()); // lines handed to Agnez, spoken one at a time
   const generation = useRef(0); // bumped when the call ends, so lines still waiting in the queue are dropped
   const sessionConfig = useRef(null);
+  const opening = useRef(null);
+  const defaultSession = useRef({});
+  const configure = useCallback((options) => { defaultSession.current = options; }, []);
   const warm = useRef(null); // { at, promise } of a token fetched ahead of time
   const setS = (s) => { statusRef.current = s; setStatus(s); };
 
   const pending = useRef(0); // lines waiting in the speech queue
-  const applyVolume = () => { try { c.current?.setVolume({ volume: userVolume.current && gateOpen.current && !pausedRef.current ? 1 : 0 }); } catch { /* not fatal */ } };
+  const applyVolume = () => { try { c.current?.setVolume({ volume: userVolume.current && !pausedRef.current ? 1 : 0 }); } catch { /* not fatal */ } };
   const micTo = (off) => { try { c.current?.setMuted(off); } catch { /* not fatal */ } };
   const resetHold = () => { mutedRef.current = false; pausedRef.current = false; inFlight.current = ''; replay.current = ''; setMutedState(false); setPausedState(false); };
 
   const conv = useConversation({
-    onConnect: () => { applyVolume(); setS('live'); waiter.current?.(true); waiter.current = null; },
+    onConnect: () => { if (closing.current) return; applyVolume(); setS('live'); waiter.current?.(true); waiter.current = null; },
     onDisconnect: () => {
       if (closing.current) return;
       retry.current = null;
       if (statusRef.current === 'live' || statusRef.current === 'connecting') setS('idle');
       waiter.current?.(false); waiter.current = null;
     },
-    onError: (m) => { setError(String(m?.message || m || 'The voice call hit a problem.')); },
+    onError: (m) => {
+      if (closing.current) return;
+      setError(String(m?.message || m || 'The voice call hit a problem.'));
+      if (statusRef.current === 'connecting') {
+        closing.current = true;
+        waiter.current?.(false);
+        waiter.current = null;
+        setS('error');
+      }
+    },
     onMessage: ({ message, source, role }) => {
+      if (closing.current) return;
       // The agent's voice model can emit expressive cues such as [calm] or [slow]. They are directions, not words: never show them.
       const text = String(message || '').replace(/\[[^\]\n]{1,24}\]/g, ' ').replace(/\s{2,}/g, ' ').trim();
       if (!text) return;
       if ((source || role) === 'user') {
+        if (/^SAY:/i.test(text) || !/[\p{L}\p{N}]/u.test(text)) return;
         gateOpen.current = false; // the person has the floor: nothing she adds on her own is heard
         applyVolume();
         setLines((l) => [...l.slice(-5), { who: 'you', text }]);
@@ -73,7 +88,7 @@ function Inner({ children }) {
         handlers.current.onAgent?.(text);
       }
     },
-    onModeChange: ({ mode: m }) => { modeRef.current = m; setMode(m); },
+    onModeChange: ({ mode: m }) => { if (closing.current) return; modeRef.current = m; setMode(m); },
   });
   const c = useRef(conv);
   c.current = conv;
@@ -107,31 +122,47 @@ function Inner({ children }) {
   };
 
   // Open the call. Resolves true once live. Raises nothing: read status and error.
-  const start = useCallback(async function startMode({ lang = 'en', clientTools, brief } = {}) {
-    const sameMode = sessionConfig.current?.lang === lang && sessionConfig.current?.brief === (brief || '') && sessionConfig.current?.clientTools === clientTools;
+  const start = useCallback(async function startMode({ lang = 'en', clientTools, brief, firstMessage, textOnly = false } = {}) {
+    clientTools ??= defaultSession.current.clientTools;
+    brief ??= defaultSession.current.brief;
+    const requested = generation.current;
+    if (opening.current) await opening.current;
+    if (requested !== generation.current) return false;
+    const sameMode = sessionConfig.current?.lang === lang && sessionConfig.current?.brief === (brief || '') && sessionConfig.current?.clientTools === clientTools && sessionConfig.current?.textOnly === textOnly;
     if (statusRef.current === 'connecting') {
       const ok = await new Promise((res) => { const prev = waiter.current; waiter.current = (ready) => { prev?.(ready); res(ready); }; });
       if (sameMode) return ok;
-      return startMode({ lang, clientTools, brief });
+      return startMode({ lang, clientTools, brief, firstMessage, textOnly });
     }
     if (statusRef.current === 'live') {
       if (sameMode) return true;
+      generation.current += 1;
+      queue.current = Promise.resolve();
       closing.current = true;
       try { await c.current.endSession(); } catch { /* already closed: endSession returns nothing in @elevenlabs/react, so it has no .catch */ }
       setS('idle');
     }
-    sessionConfig.current = { lang, brief: brief || '', clientTools };
+    sessionConfig.current = { lang, brief: brief || '', clientTools, firstMessage, textOnly };
+    let release;
+    opening.current = new Promise((resolve) => { release = resolve; });
+    setTextOnlySession(textOnly);
     setError('');
     setLines([]);
     modeRef.current = 'listening';
     gateOpen.current = false;
     resetHold();
+    micTo(false);
     setMode('listening');
     setS('connecting');
     closing.current = false;
+    const current = generation.current;
     try {
       let transport;
-      try {
+      if (textOnly) {
+        const { signed_url: signedUrl } = await api('/talk/agent');
+        if (!signedUrl) throw new Error('The text conversation is not available.');
+        transport = { signedUrl, connectionType: 'websocket' };
+      } else try {
         const { conversation_token: token } = await takeToken();
         if (!token) throw new Error('no token');
         transport = { conversationToken: token, connectionType: 'webrtc' };
@@ -141,16 +172,23 @@ function Inner({ children }) {
         if (!signedUrl) throw new Error('The live voice is not available.');
         transport = { signedUrl, connectionType: 'websocket' };
       }
+      if (current !== generation.current) return false;
       const ready = new Promise((res) => { waiter.current = res; });
       const open = (withLang) => c.current.startSession({
         ...transport,
+        textOnly,
         ...(clientTools ? { clientTools } : {}),
-        overrides: { agent: { ...(withLang ? { language: lang } : {}), ...(brief ? { prompt: { prompt: brief }, firstMessage: '' } : {}) } },
+        overrides: { conversation: { textOnly }, agent: { ...(withLang ? { language: lang === 'hinglish' ? 'hi' : lang } : {}), ...(brief ? { prompt: { prompt: brief }, firstMessage: firstMessage ?? '' } : {}) } },
       });
-      const wantLang = OVERRIDE_LANGS.has(lang);
+      const wantLang = true;
       retry.current = null;
       await open(wantLang);
+      if (current !== generation.current) {
+        try { await c.current.endSession(); } catch { /* already closed */ }
+        return false;
+      }
       const ok = await Promise.race([ready, sleep(20000).then(() => false)]);
+      if (current !== generation.current) return false;
       if (!ok) {
         waiter.current?.(false); waiter.current = null; closing.current = true;
         try { await c.current.endSession(); } catch { /* already closed: endSession returns nothing in @elevenlabs/react, so it has no .catch */ }
@@ -159,6 +197,7 @@ function Inner({ children }) {
       if (brief) c.current.sendContextualUpdate(brief);
       return true;
     } catch (e) {
+      if (current !== generation.current) return false;
       const m = `${e?.name || ''} ${e?.message || ''}`;
       setError(/permission|denied|notallowed/i.test(m) ? 'The microphone is blocked. Allow it in the browser, or type instead.' : e?.message || 'Could not open the voice call.');
       waiter.current?.(false); waiter.current = null;
@@ -166,6 +205,9 @@ function Inner({ children }) {
       try { await c.current.endSession(); } catch { /* already closed: endSession returns nothing in @elevenlabs/react, so it has no .catch */ }
       setS('error');
       return false;
+    } finally {
+      opening.current = null;
+      release();
     }
   }, []);
 
@@ -216,6 +258,14 @@ function Inner({ children }) {
       try { c.current.sendUserMessage(`SAY: ${line}`); handed(true); } catch { handed(false); return; }
       await until(() => modeRef.current === 'speaking', 6000); // she starts...
       await until(() => modeRef.current === 'listening', 90000); // ...and finishes before the next line goes out
+      // WebRTC's mode event can precede the last decoded audio. Wait for real output to drain before silencing it.
+      let quietSince = 0;
+      await until(() => {
+        const level = c.current.getOutputVolume() || 0;
+        if (level > 0.02) { quietSince = 0; return false; }
+        quietSince ||= Date.now();
+        return Date.now() - quietSince >= 700;
+      }, 10000);
       inFlight.current = '';
       if (!stale() && !queueBusy()) { gateOpen.current = false; applyVolume(); }
     };
@@ -252,6 +302,7 @@ function Inner({ children }) {
     try { c.current.sendContextualUpdate(t); return true; } catch { return false; }
   }, []);
 
+  const message = useCallback((text) => { if (statusRef.current !== 'live') return false; c.current.sendUserMessage(String(text)); return true; }, []);
   const interrupt = useCallback(() => { try { c.current.sendUserActivity(); } catch { /* not fatal */ } }, []);
   const setVolume = useCallback((volume) => { userVolume.current = volume; applyVolume(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Let her answer a question the person asked, in her own words. The gate closes again at their next turn.
@@ -261,9 +312,9 @@ function Inner({ children }) {
   const setHandlers = useCallback((h) => { handlers.current = h || {}; }, []);
 
   const value = useMemo(() => ({
-    availability, status, mode, isSpeaking: status === 'live' && mode === 'speaking', lines, error, muted, paused,
-    start, stop, prepare, say, openFloor, setMute, pause, resume, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers,
-  }), [availability, status, mode, lines, error, muted, paused, start, stop, prepare, say, openFloor, setMute, pause, resume, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers]);
+    availability, status, mode, textOnly: textOnlySession, isSpeaking: status === 'live' && mode === 'speaking', lines, error, muted, paused,
+    start, stop, prepare, configure, say, message, openFloor, setMute, pause, resume, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers,
+  }), [availability, status, mode, textOnlySession, lines, error, muted, paused, start, stop, prepare, configure, say, message, openFloor, setMute, pause, resume, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

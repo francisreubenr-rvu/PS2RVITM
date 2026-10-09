@@ -13,12 +13,12 @@ Current status, in-flight work and the task list live in `progress.md`. UX plan 
 | Backend tests | `PYTHONDONTWRITEBYTECODE=1 DATABASE_PATH="$TMPDIR/x.db" ASSETS_DIR="$TMPDIR/xa" SCHEDULER=off .venv/bin/python -m pytest -q -c apps/api/pytest.ini -p no:cacheprovider apps/api/tests` |
 | Build check | `cd Frontend && npx vite build --outDir "$TMPDIR/vb" --emptyOutDir` |
 
-Frontend is `Frontend/` (Vite + React 19, hash router). Backend is `apps/api/app` (FastAPI + SQLite, modules registered in `MODULES` in `main.py`). `.env` is gitignored and holds the Agnes, ElevenLabs and Groq keys; never print or commit it.
+Frontend is `Frontend/` (Vite + React 19, hash router). Backend is `apps/api/app` (FastAPI + SQLite, modules registered in `MODULES` in `main.py`). `.env` is gitignored and holds the Agnes, ElevenLabs and OpenRouter keys; never print or commit it.
 
 ## Hard rules
 
-- Voice: ElevenLabs agent "Agnez" is the only voice agent. The key and the agent id stay server-side; the browser gets a conversation token from `GET /voice/token`.
-- In-app reasoning model: Groq `qwen/qwen3.8-27b` only, via `POST /agent/orchestrate`. No other model, no fallback.
+- Voice: ElevenLabs agent "Agnez" is the only voice agent. Permanent keys and configuration stay server-managed. Speech uses `GET /voice/token`; denied-microphone text mode uses a short-lived server-signed WebSocket address.
+- Server reasoning/planning: OpenRouter `z-ai/glm-5.3-flash` only, via the existing text routes. No model fallback. The ElevenLabs native dialogue/tool-selection LLM remains provider-configured `deepseek-v41-flash`; do not claim it was swapped to GLM.
 - Images and video: Agnes models, prompts follow `MEDIA_GENERATION_MASTER.md` (in `../PS2RVITM2026-Francis/docs/`).
 - UI work goes through the vault design gate (`/Volumes/1TB SSD/brain/guides/ROUTER.md`, `RULES.md`, playbooks) before markup. Reduced colour: one accent reserved for the primary action.
 - No mock data. Demo data must be visibly labelled and removable.

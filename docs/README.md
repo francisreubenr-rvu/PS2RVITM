@@ -21,6 +21,7 @@
 | [test-plan.md](test-plan.md) | How each claim is proven; unit, integration, evaluation, rehearsal |
 | [team-plan.md](team-plan.md) | Roles, repo layout, GitHub workflow, 36-hour timeline |
 | [demo-script.md](demo-script.md) | 5-minute script, contingencies, rehearsal checklist |
+| [deployment-plan.md](deployment-plan.md) | Hosting requirements, environment gates, staging and production release sequence |
 
 ## Studio scope (added)
 Beyond campaigns: posts, posters, names and taglines, brand kit, website, promo reels, and a **Build my business** path for people with no business yet. Website and video are teammates' services; the frontend has their screens, local previews and contracts (see [api-spec](api-spec.md) section 12). Screens with no backend yet are greyed out in the sidebar.

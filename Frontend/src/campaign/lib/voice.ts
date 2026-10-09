@@ -19,6 +19,8 @@ export function useVoiceInput(lang: string, onFinal: (text: string) => void) {
   const [interim, setInterim] = useState("");
   const [error, setError] = useState("");
   const conv = useRef<Session | null>(null);
+  const generation = useRef(0);
+  const opening = useRef(false);
   const timer = useRef(0);
   const cbRef = useRef(onFinal);
   cbRef.current = onFinal;
@@ -30,6 +32,8 @@ export function useVoiceInput(lang: string, onFinal: (text: string) => void) {
   }, []);
 
   const stop = useCallback(() => {
+    generation.current += 1;
+    opening.current = false;
     window.clearTimeout(timer.current);
     const c = conv.current;
     conv.current = null;
@@ -43,26 +47,32 @@ export function useVoiceInput(lang: string, onFinal: (text: string) => void) {
   useEffect(() => stop, [stop]);
 
   const start = useCallback(async () => {
-    if (conv.current || connecting) return;
+    if (conv.current || opening.current) return;
+    opening.current = true;
+    const current = ++generation.current;
     setError("");
     setInterim("");
     setConnecting(true);
     try {
       const { conversation_token: token } = await voiceToken();
+      if (current !== generation.current) return;
       if (!token) throw new Error("not configured");
       const { Conversation } = await import("@elevenlabs/client");
+      if (current !== generation.current) return;
       const opts: Record<string, unknown> = {
         overrides: { agent: { prompt: { prompt: BRIEF }, firstMessage: '' } },
         conversationToken: token,
         connectionType: "webrtc",
         onMessage: ({ message, source }: { message?: string; source?: string }) => {
-          const text = String(message || "").trim();
+          if (current !== generation.current) return;
+          // ElevenLabs can append this ASR annotation to generated speech; it is not dictated content.
+          const text = String(message || "").replace(/\s*\{Non-literal\}\s*/gi, " ").trim();
           if (!text || source !== "user") return;
           stop();
           cbRef.current(text);
         },
-        onDisconnect: () => { if (conv.current) stop(); },
-        onError: (m: unknown) => setError(String((m as Error)?.message || m || "Agnez hit a problem. Type instead.")),
+        onDisconnect: () => { if (current === generation.current && conv.current) stop(); },
+        onError: (m: unknown) => { if (current === generation.current) setError(String((m as Error)?.message || m || "Agnez hit a problem. Type instead.")); },
       };
       let session: Session;
       try {
@@ -70,16 +80,24 @@ export function useVoiceInput(lang: string, onFinal: (text: string) => void) {
       } catch (error) {
         throw error;
       }
+      if (current !== generation.current) {
+        await session.endSession();
+        return;
+      }
       conv.current = session;
       try { session.setVolume({ volume: 0 }); session.sendContextualUpdate(BRIEF); } catch { /* not fatal */ }
       setConnecting(false);
+      opening.current = false;
       setListening(true);
       setInterim("Listening to Agnez");
       timer.current = window.setTimeout(stop, MAX_SECONDS * 1000);
     } catch (e) {
+      if (current !== generation.current) return;
+      opening.current = false;
       setConnecting(false);
       const m = `${(e as Error)?.name || ""} ${(e as Error)?.message || ""}`;
       setError(/permission|denied|notallowed/i.test(m) ? "Microphone access is blocked. Allow it in the browser, or type instead."
+        : (e as { status?: number })?.status === 429 ? "ElevenLabs is busy. Try again in a moment, or type instead."
         : /not configured|503|unavailable/i.test(m) ? "Agnez is not set up on this server. Type instead." : "Could not reach Agnez. Type instead.");
     }
   }, [lang, connecting, stop]);

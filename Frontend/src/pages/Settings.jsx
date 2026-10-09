@@ -12,7 +12,7 @@ import { replayIntro } from '../lib/intro';
 const TABS = ['Appearance', 'Providers', 'Voice', 'Calibration', 'Guardrails'];
 
 const CAPABILITY = {
-  text: { title: 'Text reasoning', model: 'qwen/qwen3.8-27b', note: 'Planning, campaign writing, interview extraction, reviews and Talk use Qwen through Groq.' },
+  text: { title: 'Text reasoning', model: 'z-ai/glm-5.3-flash', note: 'Planning, campaign writing, interview extraction, reviews and text chat use GLM 5.3 Flash through OpenRouter.' },
   image: { title: 'Images', model: 'agnes-image-2.5-flash', note: 'Backgrounds for posts, stories, posters, blog covers.' },
   video: { title: 'Video', model: 'agnes-video-2.5-flash', note: 'Reel clips. Free tier allows 1 request a minute.' },
 };
@@ -120,7 +120,7 @@ const ServicesCard = () => {
                 {r.configured ? <Badge tone={r.active ? 'good' : 'neutral'}>{r.active ? 'On' : 'Off'}</Badge> : <Badge>No key on the server</Badge>}
               </p>
               <p className="text-xs text-ink/60">{r.used_for}</p>
-              {!r.configured && <p className="text-xs text-ink/50">Add {r.name === 'groq' ? 'GROQ_API_KEY' : r.name === 'elevenlabs' ? 'AGNEZ_ELEVENLABS_API_KEY' : 'GEMINI_API_KEY'} to the server's .env, then restart it.</p>}
+              {!r.configured && <p className="text-xs text-ink/50">Add {r.name === 'openrouter' ? 'OPENROUTER_API_KEY' : r.name === 'groq' ? 'GROQ_API_KEY' : r.name === 'elevenlabs' ? 'AGNEZ_ELEVENLABS_API_KEY' : 'GEMINI_API_KEY'} to the server's .env, then restart it.</p>}
             </div>
             <Toggle checked={r.enabled} onChange={(v) => flip(r.name, v)} label={`Use ${r.label}`} />
           </li>
@@ -136,9 +136,9 @@ const ProvidersTab = ({ data, reload }) => (
       const row = data.providers.find((p) => p.capability === cap) || { key_set: false };
       if (cap === 'text') return (
         <section key={cap} className="card">
-          <CardTitle sub={CAPABILITY.text.model} action={<Badge tone={row.active ? 'good' : 'neutral'}>{row.active ? 'Enabled' : row.configured ? 'Off' : 'Not configured'}</Badge>}>Text reasoning</CardTitle>
+          <CardTitle sub={row.model || CAPABILITY.text.model} action={<Badge tone={row.active ? 'good' : 'neutral'}>{row.active ? 'Enabled' : row.configured ? 'Off' : 'Not configured'}</Badge>}>Text reasoning</CardTitle>
           <p className="text-sm text-ink/65">{CAPABILITY.text.note}</p>
-          <p className="mt-3 text-xs text-ink/60">The server manages the Groq key. The Groq switch below controls text processing. No other model is used.</p>
+          <p className="mt-3 text-xs text-ink/60">The server manages the OpenRouter key. The OpenRouter switch below controls text processing. No other model is used.</p>
         </section>
       );
       return <ProviderCard key={cap} cap={cap} row={row} onSaved={reload} />;

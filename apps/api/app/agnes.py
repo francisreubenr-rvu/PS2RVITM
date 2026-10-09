@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from app.config import IMAGE_MODEL, TEXT_MODEL, VIDEO_MODEL, Settings
+from app.config import IMAGE_MODEL, TEXT_MODEL, VIDEO_MODEL, Settings, TEXT_PROVIDER, TEXT_URL, text_api_key, text_request
 from app.db import Database
 from app.queue import Buckets
 
@@ -51,7 +51,7 @@ class Agnes:
     @property
     def text_ready(self) -> bool:
         from app.extras import toggle_state
-        return toggle_state(self.db, "groq")["active"]
+        return toggle_state(self.db, "openrouter")["active"]
 
     def _require_key(self) -> str:
         # A key saved in Settings (bring your own) wins over the server's .env key.
@@ -94,26 +94,26 @@ class Agnes:
         temperature: float = 0.2,
         max_tokens: int = 1200,
     ) -> str:
-        # The historical facade also owns media, but every text call uses only Qwen.
+        # The historical facade also owns media, but every text call uses only GLM 5.3 Flash.
         if not self.text_ready:
-            raise AgnesNotConfigured("Groq Qwen is off or GROQ_API_KEY is not set")
+            raise AgnesNotConfigured("OpenRouter GLM is off or OPENROUTER_API_KEY is not set")
         payload = {"model": TEXT_MODEL, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
-        digest = _hash({"provider": "groq", "kind": cache_kind, **payload})
+        digest = _hash({"provider": TEXT_PROVIDER, "kind": cache_kind, **payload})
         cached = self.db.cache_get(digest)
         if cached is not None:
             return cached
         await self.buckets.text.acquire()
         try:
             async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post("https://api.groq.com/openai/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY'].strip()}"}, json=payload)
+                response = await client.post(TEXT_URL,
+                    headers={"Authorization": f"Bearer {text_api_key()}"}, json=text_request(payload))
             if response.status_code >= 400:
-                raise AgnesError(f"Groq Qwen said {response.status_code}")
+                raise AgnesError(f"OpenRouter GLM said {response.status_code}")
             content = response.json()["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
-            raise AgnesError("Groq Qwen did not return a usable text response") from exc
+            raise AgnesError("OpenRouter GLM did not return a usable text response") from exc
         if not isinstance(content, str) or not content.strip():
-            raise AgnesError("Groq Qwen returned empty text")
+            raise AgnesError("OpenRouter GLM returned empty text")
         self.db.cache_put(digest, cache_kind, content, _now())
         return content
 

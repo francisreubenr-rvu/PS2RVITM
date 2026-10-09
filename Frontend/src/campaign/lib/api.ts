@@ -80,7 +80,7 @@ export const applyChange = (id: string, pid: string) => post<Board>(`/campaign/$
 export const makeImage = (assetId: string) => post<unknown>(`/assets/${assetId}/image`);
 export const logOutreach = (assetId: string, action: OutreachAction) => post<unknown>(`/assets/${assetId}/outreach`, { action });
 export const createLink = (assetId: string) => post<{ code: string; url: string }>(`/assets/${assetId}/link`);
-export const makeVideo = (assetId: string, aspect: "16:9" | "9:16") => post<unknown>(`/assets/${assetId}/video`, { motion_opt_in: true, aspect });
+export const makeVideo = (assetId: string, aspect: "16:9" | "9:16", motionOptIn = false) => post<unknown>(`/assets/${assetId}/video`, { motion_opt_in: motionOptIn, aspect });
 export const sendEmail = (assetId: string, recipients?: { name: string; email: string }[]) =>
   post<{ sent: number; failed: unknown[] }>(`/assets/${assetId}/send-email`, recipients ? { recipients } : {});
 

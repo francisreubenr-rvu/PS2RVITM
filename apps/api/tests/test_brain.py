@@ -60,20 +60,20 @@ def test_no_key_is_503(rig):
 
 def test_the_switch_in_settings_is_respected(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    c.put("/settings/toggles/groq", json={"enabled": False})
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    c.put("/settings/toggles/openrouter", json={"enabled": False})
     assert ask(c).status_code == 503
     assert Fake.calls == []
 
 
 def test_happy_path_returns_say_and_actions(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    Fake.plan = {"groq.com": groq_reply()}
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    Fake.plan = {"openrouter.ai": groq_reply()}
     out = ask(c, state={"campaign_id": "c1"}).json()
     assert out == {"say": "Opening the plan.", "actions": [{"type": "navigate", "params": {"screen": "plan"}}]}
     sent = Fake.calls[-1][1]["json"]
-    assert sent["model"] == "qwen/qwen3.8-27b" and sent["response_format"] == {"type": "json_object"}
+    assert sent["model"] == "z-ai/glm-5.3-flash" and sent["response_format"] == {"type": "json_object"}
     system = sent["messages"][0]["content"]
     assert "POST /campaign/generate" in system and "/plan/approve" in system and "/change/propose" in system and "/assets/{id}/video" in system
     assert sent["messages"][1]["content"] == json.dumps({"utterance": "start the plan", "state": {"campaign_id": "c1"}}, ensure_ascii=False)
@@ -81,30 +81,30 @@ def test_happy_path_returns_say_and_actions(rig):
 
 def test_a_plain_answer_has_no_actions(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    Fake.plan = {"groq.com": groq_reply(json.dumps({"say": "You have no campaign yet.", "actions": []}))}
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    Fake.plan = {"openrouter.ai": groq_reply(json.dumps({"say": "You have no campaign yet.", "actions": []}))}
     assert ask(c).json()["actions"] == []
 
 
 def test_a_bad_reply_is_502(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    Fake.plan = {"groq.com": groq_reply("just plain words, no json")}
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    Fake.plan = {"openrouter.ai": groq_reply("just plain words, no json")}
     r = ask(c)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "brain_bad_reply"
 
 
 def test_an_invented_action_type_is_rejected(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    Fake.plan = {"groq.com": groq_reply(json.dumps({"say": "x", "actions": [{"type": "delete_everything", "params": {}}]}))}
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    Fake.plan = {"openrouter.ai": groq_reply(json.dumps({"say": "x", "actions": [{"type": "delete_everything", "params": {}}]}))}
     assert ask(c).json()["detail"]["code"] == "brain_bad_reply"
 
 
 def test_a_provider_failure_is_reported(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    Fake.plan = {"groq.com": httpx.Response(500, json={})}
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    Fake.plan = {"openrouter.ai": httpx.Response(500, json={})}
     r = ask(c)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "brain_provider_error"
 

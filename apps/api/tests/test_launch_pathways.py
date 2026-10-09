@@ -74,8 +74,8 @@ def test_no_key_is_503_and_never_calls_the_planner(rig):
 
 def test_the_settings_switch_is_respected(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
-    c.put("/settings/toggles/groq", json={"enabled": False})
+    mp.setenv("OPENROUTER_API_KEY", "gk")
+    c.put("/settings/toggles/openrouter", json={"enabled": False})
     r = ask(c)
     assert r.status_code == 503 and r.json()["detail"]["code"] == "brain_not_configured"
     assert Fake.calls == []
@@ -83,21 +83,21 @@ def test_the_settings_switch_is_respected(rig):
 
 def test_happy_path_returns_three_or_four_bounded_pathways(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     out = ask(c).json()
     assert len(out["pathways"]) == 4
     assert [p["id"] for p in out["pathways"]] == ["path0", "path1", "path2", "path3"]
     for p in out["pathways"]:
         assert set(p) == {"id", "title", "summary", "why", "first_move", "money", "time", "risk"}
-    assert out["model"] == "qwen/qwen3.8-27b" and "not advice" in out["disclaimer"]
+    assert out["model"] == "z-ai/glm-5.3-flash" and "not advice" in out["disclaimer"]
 
 
 def test_the_planner_is_told_only_the_answers_and_the_one_model(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     ask(c)
     sent = Fake.calls[-1][1]["json"]
-    assert sent["model"] == brain.GROQ_MODEL == "qwen/qwen3.8-27b" and "gpt-oss" not in sent["model"]
+    assert sent["model"] == brain.TEXT_MODEL == "z-ai/glm-5.3-flash" and "gpt-oss" not in sent["model"]
     assert sent["response_format"] == {"type": "json_object"}
     assert sent["messages"][1]["content"] == json.dumps(BODY, ensure_ascii=False)
     system = sent["messages"][0]["content"]
@@ -106,7 +106,7 @@ def test_the_planner_is_told_only_the_answers_and_the_one_model(rig):
 
 def test_a_shortlist_is_dropped_and_too_few_is_502(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     # one of three is unusable (no summary), so only two survive and the route refuses to show a two-item shortlist
     Fake.reply = groq_reply(json.dumps({"pathways": [FOUR[0], FOUR[1], {"title": "No summary", "why": "x"}]}))
     r = ask(c)
@@ -115,14 +115,14 @@ def test_a_shortlist_is_dropped_and_too_few_is_502(rig):
 
 def test_a_bad_reply_is_502(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     Fake.reply = groq_reply("just words, no json")
     assert ask(c).json()["detail"]["code"] == "pathways_failed"
 
 
 def test_a_provider_failure_is_reported(rig):
     _, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "gk")
+    mp.setenv("OPENROUTER_API_KEY", "gk")
     Fake.reply = httpx.Response(500, json={})
     r = ask(c)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "pathways_failed"
@@ -165,7 +165,7 @@ IDEAS = {"ideas": [{"title": "Tiffin service", "business_type": "restaurant", "w
 
 
 def test_ideas_still_work_and_carry_the_chosen_pathway(tmp_path, monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     async def answer(system, user, tokens):
         FakeAgnes.last = [{"content": system}, {"content": json.dumps(user)}]
         return IDEAS
@@ -179,7 +179,7 @@ def test_ideas_still_work_and_carry_the_chosen_pathway(tmp_path, monkeypatch):
 
 
 def test_ideas_still_work_with_the_older_body(tmp_path, monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     async def answer(*args):
         return IDEAS
     monkeypatch.setattr(launch, "_qwen", answer)
@@ -189,14 +189,14 @@ def test_ideas_still_work_with_the_older_body(tmp_path, monkeypatch):
 
 def test_ideas_and_names_use_qwen_and_respect_switch(rig):
     app, c, mp = rig
-    mp.setenv("GROQ_API_KEY", "test-key")
+    mp.setenv("OPENROUTER_API_KEY", "test-key")
     Fake.reply = groq_reply(json.dumps(IDEAS))
     assert c.post("/launch/ideas", json={"city":"Bengaluru"}).status_code == 200
     Fake.reply = groq_reply(json.dumps({"names":["Brew House"],"taglines":[{"en":"Coffee nearby"}]}))
     assert c.post("/launch/names", json={"city":"Bengaluru","idea":"Coffee kiosk"}).status_code == 200
     assert len(Fake.calls) == 2
-    assert all(call[1]["json"]["model"] == brain.GROQ_MODEL for call in Fake.calls)
-    c.put("/settings/toggles/groq", json={"enabled":False})
+    assert all(call[1]["json"]["model"] == brain.TEXT_MODEL for call in Fake.calls)
+    c.put("/settings/toggles/openrouter", json={"enabled":False})
     assert c.post("/launch/ideas", json={"city":"Bengaluru"}).status_code == 503
     assert c.post("/launch/names", json={"city":"Bengaluru","idea":"Coffee kiosk"}).status_code == 503
     assert len(Fake.calls) == 2

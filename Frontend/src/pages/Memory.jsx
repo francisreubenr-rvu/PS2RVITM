@@ -1,3 +1,4 @@
+import { isAgnezApprovedClick } from '../voice/approvedClick';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Brain, Check, Download, Lightbulb, Pencil, Pin, PinOff, Plus, Search, Trash2, Upload, X } from 'lucide-react';
 import { CardTitle, Field, Banner, Toggle } from '../components/ui';
@@ -205,8 +206,8 @@ const Memory = () => {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
-  const forget = () => {
-    if (window.confirm('Forget everything GrowIt remembers about your business? Your menu and shop details in Brand & Data are not touched.')) {
+  const forget = (event) => {
+    if (isAgnezApprovedClick(event) || window.confirm('Forget everything GrowIt remembers about your business? Your menu and shop details in Brand & Data are not touched.')) {
       act(() => send('DELETE', '/memory?confirm=true'), 'Everything was forgotten.');
     }
   };
