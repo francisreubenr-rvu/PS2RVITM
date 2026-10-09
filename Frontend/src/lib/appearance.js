@@ -15,12 +15,12 @@ export const SURFACES = [
 ];
 
 export const BACKDROPS = [
-  { id: 'prism', label: 'Liquid prism', hint: 'Slow glassy ribbons on black, their edges split into thin bands of colour.' },
+  { id: 'aurora', label: 'Northern lights', hint: 'Slow curtains of northern lights that bend and brighten around your cursor.' },
   { id: 'still', label: 'Still gradient', hint: 'A warm gradient with soft blobs behind the glass, held still.' },
   { id: 'plain', label: 'Plain', hint: 'One soft gradient, no blobs.' },
 ];
 
-export const DEFAULTS = { accent: '#f0b429', surface: 'glass', backdrop: 'prism' };
+export const DEFAULTS = { accent: '#f0b429', surface: 'glass', backdrop: 'aurora' };
 
 const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 

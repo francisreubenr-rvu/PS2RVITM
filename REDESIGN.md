@@ -20,6 +20,6 @@ Rules: real data only, no emojis, no em dashes, design gate read (ROUTER, RULES,
 | Page | Insights | todo |
 | Page | Studio, Launch, Agent, Video, Website, Identity, Brand, Planner, ChangeLog, Start, Login, Bakeoff | todo (shared layer first, bespoke if time) |
 
-| Global | Liquid prism background (pixel trail and aurora removed, no cursor effect) | done |
+| Global | Northern lights background with cursor interaction (pixel trail and prism removed) | done |
 | Global | Agnez dock on every page with mute, pause, end; one shared conversation | done (uncommitted) |
 | Voice | Cue tags stripped, one opener message, no acknowledgements, speech gate | done in code; server prompt/first message still needs the agent PATCH (AGNEZ-OVERRIDES.md) |

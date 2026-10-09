@@ -146,10 +146,10 @@ body {
   display: none;
 }
 
-/* Liquid prism background. The shader paints the whole screen, so the CSS blob layers step aside while it is on screen. */
-.prism-backdrop { position: absolute; inset: 0; }
-:root[data-backdrop='prism'] .app-backdrop::before,
-:root[data-backdrop='prism'] .app-backdrop::after {
+/* Northern lights background. The shader paints the whole sky, so the CSS blob layers step aside while it is on screen. */
+.aurora-backdrop { position: absolute; inset: 0; }
+:root[data-backdrop='aurora'] .app-backdrop::before,
+:root[data-backdrop='aurora'] .app-backdrop::after {
   display: none;
 }
 
