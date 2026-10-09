@@ -37,11 +37,12 @@ const TalkScreen = ({ id }) => {
   const [text, setText] = useState('');
   const [picked, setPicked] = useState([]);
   const [typing, setTyping] = useState(false);
-  const end = useRef(null);
+  const scroller = useRef(null);
   const q = t.session?.question;
   const locked = Boolean(t.session);
 
-  useEffect(() => { end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [t.messages.length, t.proposal]);
+  // Keep the newest line in view by scrolling the conversation itself, never the page: the Agnez panel below must stay on screen.
+  useEffect(() => { const el = scroller.current; if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); }, [t.messages.length, t.proposal]);
   useEffect(() => { setPicked([]); }, [q?.id]);
 
   const submit = (e) => {
@@ -56,7 +57,7 @@ const TalkScreen = ({ id }) => {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <section className="card flex min-h-[34rem] flex-col" aria-label="Conversation">
+      <section className="card flex h-[calc(100dvh-11rem)] min-h-[42rem] flex-col" aria-label="Conversation">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 pb-3">
           <label className="flex items-center gap-2 text-sm">
             <span className="font-medium">I speak</span>
@@ -83,7 +84,7 @@ const TalkScreen = ({ id }) => {
           </p>
         )}
 
-        <ul className="my-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1" aria-live="polite">
+        <ul ref={scroller} className="my-4 flex min-h-[8rem] flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pr-1" aria-live="polite">
           {t.messages.length === 0 && (
             <li className="m-auto max-w-sm text-center">
               <h2 className="text-xl font-bold tracking-tight">Talk to GrowIt</h2>
@@ -103,11 +104,10 @@ const TalkScreen = ({ id }) => {
               </motion.li>
             )}
           </AnimatePresence>
-          <li ref={end} aria-hidden="true" />
         </ul>
 
         {/* What can be tapped right now */}
-        <div className="flex flex-wrap items-center justify-center gap-2 pb-3">
+        <div className="flex max-h-40 flex-wrap items-center justify-center gap-2 overflow-y-auto pb-3">
           {t.mode === 'interview' && q && (
             <>
               {q.options?.map((o) => {
@@ -139,7 +139,7 @@ const TalkScreen = ({ id }) => {
           )}
         </div>
 
-        <div className="flex flex-col items-center gap-2 border-t border-ink/10 pt-4">
+        <div className="flex shrink-0 flex-col items-center gap-2 border-t border-ink/10 pt-4">
           <Orb phase={t.phase} started={t.started} ended={t.ended} onClick={t.orb} onEnd={t.endCall} disabled={t.busy && t.phase !== 'speaking'} />
           <p className="min-h-5 max-w-md text-center text-sm text-ink/70" role="status" aria-live="polite">{caption}</p>
           {t.paused && <p className="text-xs text-warn">The voice call is not open. Tap the mic to reopen it, or type below.</p>}

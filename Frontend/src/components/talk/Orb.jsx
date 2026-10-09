@@ -23,13 +23,16 @@ const hueOf = (hex) => {
 };
 const BASE_HUE = 262;
 
-const Orb = ({ phase, onClick, onEnd, started, ended, disabled, size = 168 }) => {
+const Orb = ({ phase, onClick, onEnd, started, ended, disabled, size = 200 }) => {
   const a = useAgnez();
   const live = a.status === 'live' && !ended;
   const speaking = live && a.mode === 'speaking';
   const thinking = phase === 'thinking' && !speaking && !ended;
   const accent = useMemo(() => readAppearance().accent, []);
-  const hue = useMemo(() => hueOf(accent) - BASE_HUE, [accent]);
+  const baseHue = useMemo(() => hueOf(accent) - BASE_HUE, [accent]);
+  // Two distinct looks: while Agnez hears, a cool, slow ring around the "listening" orb; while she speaks, the ring and the lines
+  // turn warmer and brighter around the "composing" orb. The shader hue is a live value, so switching costs no restart.
+  const hue = baseHue + (speaking ? 55 : 0);
   const agnez = useRef(a);
   agnez.current = a;
   const getLevel = useCallback(() => (agnez.current.mode === 'speaking' ? agnez.current.outputVolume() : agnez.current.inputVolume()), []);
@@ -41,17 +44,18 @@ const Orb = ({ phase, onClick, onEnd, started, ended, disabled, size = 168 }) =>
 
   return (
     <div className="flex w-full flex-col items-center gap-3">
-      <div className="relative grid h-56 w-full max-w-lg place-items-center overflow-hidden rounded-3xl bg-[#14141a]">
-        <div className="absolute inset-0 opacity-80" aria-hidden="true">
-          <LineWaves color1={accent} color2="#ffffff" color3={accent} brightness={0.6} enableMouseInteraction={false} />
+      <div className="relative grid h-64 w-full max-w-lg place-items-center overflow-hidden rounded-3xl bg-[#14141a]">
+        <div className="absolute inset-0 transition-[filter,opacity] duration-700" style={{ opacity: speaking ? 1 : 0.7, filter: speaking ? 'hue-rotate(55deg) saturate(1.5) brightness(1.35)' : 'saturate(0.8)' }} aria-hidden="true">
+          <LineWaves color1={accent} color2="#ffffff" color3={accent} brightness={0.34} enableMouseInteraction={false} />
         </div>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(10,10,14,0.85)_0%,rgba(10,10,14,0.5)_34%,transparent_58%)]" aria-hidden="true" />
         <div className="relative" style={{ width: size, height: size }}>
           <div className="absolute inset-0 transition-[opacity,filter] duration-500" style={{ opacity: thinking ? 0.28 : started ? 1 : 0.8, filter: thinking ? 'blur(2px) saturate(0.8)' : 'none' }}>
             <GlowOrb hue={hue} getLevel={live ? getLevel : null} simulate={speaking} />
           </div>
-          {thinking && (
-            <span className="pointer-events-none absolute inset-0 grid place-items-center [&_canvas]:!size-20" aria-hidden="true">
-              <ThinkingOrb state="solving" size={64} theme="dark" />
+          {(thinking || live) && (
+            <span className="pointer-events-none absolute inset-0 grid place-items-center [&_canvas]:!size-36" aria-hidden="true">
+              <ThinkingOrb key={speaking ? 'speaking' : thinking ? 'thinking' : 'listening'} state={speaking ? 'composing' : thinking ? 'solving' : 'listening'} size={64} theme="dark" />
             </span>
           )}
           <button
@@ -61,13 +65,22 @@ const Orb = ({ phase, onClick, onEnd, started, ended, disabled, size = 168 }) =>
             aria-label={label}
             className="group absolute inset-0 z-10 grid place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white/80 disabled:cursor-default"
           >
-            {!thinking && (
+            {!thinking && !live && (
               <span className="grid size-12 place-items-center rounded-full bg-black/35 text-white ring-1 ring-white/25 backdrop-blur-sm transition-transform group-enabled:group-hover:scale-110 group-enabled:group-active:scale-95">
                 <Icon size={20} />
               </span>
             )}
           </button>
         </div>
+        {live && (
+          <span className="absolute left-3 top-3 z-20 inline-flex items-center gap-2 rounded-full bg-white/14 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm" role="status">
+            <span className="relative flex size-2.5">
+              <span className={`absolute inline-flex size-full animate-ping rounded-full opacity-75 ${speaking ? 'bg-amber-300' : 'bg-sky-300'}`} />
+              <span className={`relative inline-flex size-2.5 rounded-full ${speaking ? 'bg-amber-300' : 'bg-sky-300'}`} />
+            </span>
+            {speaking ? 'Agnez is speaking' : 'Listening to you'}
+          </span>
+        )}
         {open && (
           <button type="button" onClick={onEnd} className="absolute bottom-3 left-1/2 z-20 inline-flex h-9 -translate-x-1/2 items-center gap-2 rounded-full bg-bad px-4 text-sm font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95">
             <PhoneOff size={15} /> End call

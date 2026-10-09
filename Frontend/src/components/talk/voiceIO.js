@@ -35,6 +35,7 @@ export function useTalkVoice({ onFinal, onAgent } = {}) {
       onUser: (text) => { if (/^SAY:/i.test(text) || !/[\p{L}\p{N}]/u.test(text)) return; finalRef.current?.(text); }, // our own hand-off lines can echo back, and a bare "..." is room noise: neither is an answer
       onAgent: (text) => agentRef.current?.(text),
     });
+    a.prepare(); // the token is ready before the first line needs the call
     return () => { a.setHandlers(null); void a.stop(); };
   }, [a.setHandlers]); // eslint-disable-line react-hooks/exhaustive-deps
 

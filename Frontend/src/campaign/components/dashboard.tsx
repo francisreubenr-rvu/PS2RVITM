@@ -6,18 +6,29 @@ import type { Forecast } from "../lib/types";
 import type { Dashboard } from "../lib/types";
 import { Badge, Button, Empty, ErrorNote, Fold } from "./ui";
 import { OrbLoader } from "../../orb/orbPresence";
+import { Layers, Mail, MailOpen, MousePointerClick, Send, ShieldAlert, ShieldCheck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const HOUR = 3600_000;
 
-function Kpi({ label, value, note, big }: { label: string; value: number; note?: string; big?: boolean }) {
+// Each total has its own colour and icon, drawn from the same palette the Insights charts use, so a number is recognised at a glance.
+type Tone = "accent" | "info" | "good" | "rose" | "warn";
+
+function Kpi({ label, value, note, big, tone, icon: Icon }: { label: string; value: number; note?: string; big?: boolean; tone?: Tone; icon?: LucideIcon }) {
   return (
-    <div className={`kpi${big ? " kpi-big" : ""}`}>
-      <span className="label">{label}</span>
+    <div className={`kpi${big ? " kpi-big" : ""}`} data-tone={tone}>
+      <span className="kpi-head">
+        <span className="label">{label}</span>
+        {Icon ? <span className="kpi-ico"><Icon size={big ? 20 : 15} strokeWidth={2.4} /></span> : null}
+      </span>
       <strong className="kpi-n">{value}</strong>
       {note ? <span className="kpi-note">{note}</span> : null}
     </div>
   );
 }
+
+// One colour per funnel stage, running through the same palette as the charts.
+const STAGE_COLORS = ["var(--color-info)", "var(--color-accent)", "var(--color-good)", "var(--color-rose)", "var(--color-warn)"];
 
 function Funnel({ rows }: { rows: Dashboard["funnel"] }) {
   const max = Math.max(1, ...rows.map((r) => r.count));
@@ -29,7 +40,7 @@ function Funnel({ rows }: { rows: Dashboard["funnel"] }) {
         return (
           <li key={r.stage}>
             <span className="funnel-label">{humanize(r.stage)}</span>
-            <span className="funnel-track"><span className="funnel-fill" style={{ width: `${(r.count / max) * 100}%` }} /></span>
+            <span className="funnel-track"><span className="funnel-fill" style={{ width: `${(r.count / max) * 100}%`, background: STAGE_COLORS[i % STAGE_COLORS.length] }} /></span>
             <span className="funnel-n mono">{r.count}{i > 0 && prev > 0 ? <em> {Math.round((r.count / prev) * 100)}%</em> : null}</span>
           </li>
         );
@@ -408,13 +419,13 @@ export function DashboardView({ id, go, onBusiness }: { id: string; go: (r: Rout
       {error ? <ErrorNote onRetry={load}>{error}</ErrorNote> : null}
 
       <section className="kpis" aria-label="Totals">
-        <Kpi big label="Clicks" value={t.clicks} note={t.clicks === 0 ? "No link opened yet" : undefined} />
-        <Kpi label="Assets" value={t.assets} />
-        <Kpi label="Approved" value={t.approved} />
-        <Kpi label="Blocked" value={t.blocked} />
-        <Kpi label="Distributed" value={t.distributed} />
-        <Kpi label="Emails sent" value={t.email_sent} />
-        <Kpi label="Email opens" value={t.email_opens} />
+        <Kpi big tone="accent" icon={MousePointerClick} label="Clicks" value={t.clicks} note={t.clicks === 0 ? "No link opened yet" : undefined} />
+        <Kpi tone="info" icon={Layers} label="Assets" value={t.assets} />
+        <Kpi tone="good" icon={ShieldCheck} label="Approved" value={t.approved} />
+        <Kpi tone="rose" icon={ShieldAlert} label="Blocked" value={t.blocked} />
+        <Kpi tone="warn" icon={Send} label="Distributed" value={t.distributed} />
+        <Kpi tone="info" icon={Mail} label="Emails sent" value={t.email_sent} />
+        <Kpi tone="good" icon={MailOpen} label="Email opens" value={t.email_opens} />
       </section>
 
       <div className="dash-grid">

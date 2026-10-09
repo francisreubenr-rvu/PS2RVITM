@@ -13,6 +13,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const Ctx = createContext(null);
 
+// A conversation token is fetched ahead of the tap and used once, so opening the call skips a server round trip. It expires
+// quickly, so one older than this is discarded and a fresh one is fetched.
+const TOKEN_TTL_MS = 45000;
+
 function Inner({ children }) {
   const [availability, setAvailability] = useState(null); // null while checking, then { available, reason }
   const [status, setStatus] = useState('idle'); // idle | connecting | live | error
@@ -28,6 +32,7 @@ function Inner({ children }) {
   const queue = useRef(Promise.resolve()); // lines handed to Agnez, spoken one at a time
   const generation = useRef(0); // bumped when the call ends, so lines still waiting in the queue are dropped
   const sessionConfig = useRef(null);
+  const warm = useRef(null); // { at, promise } of a token fetched ahead of time
   const setS = (s) => { statusRef.current = s; setStatus(s); };
 
   const conv = useConversation({
@@ -70,6 +75,19 @@ function Inner({ children }) {
     };
   }, []);
 
+  // Fetch the conversation token before it is needed. Safe to call repeatedly; a fetch that fails is simply forgotten.
+  const prepare = useCallback(() => {
+    if (warm.current && Date.now() - warm.current.at < TOKEN_TTL_MS) return;
+    const promise = voiceToken();
+    warm.current = { at: Date.now(), promise };
+    promise.catch(() => { if (warm.current?.promise === promise) warm.current = null; });
+  }, []);
+  const takeToken = () => {
+    const w = warm.current;
+    warm.current = null; // a token opens one call
+    return w && Date.now() - w.at < TOKEN_TTL_MS ? w.promise : voiceToken();
+  };
+
   // Open the call. Resolves true once live. Raises nothing: read status and error.
   const start = useCallback(async function startMode({ lang = 'en', clientTools, brief } = {}) {
     const sameMode = sessionConfig.current?.lang === lang && sessionConfig.current?.brief === (brief || '') && sessionConfig.current?.clientTools === clientTools;
@@ -94,7 +112,7 @@ function Inner({ children }) {
     try {
       let transport;
       try {
-        const { conversation_token: token } = await voiceToken();
+        const { conversation_token: token } = await takeToken();
         if (!token) throw new Error('no token');
         transport = { conversationToken: token, connectionType: 'webrtc' };
       } catch (error) {
@@ -166,7 +184,7 @@ function Inner({ children }) {
       await until(() => statusRef.current !== 'connecting', 8000);
       if (stale() || statusRef.current !== 'live') { handed(false); return; }
       await until(() => modeRef.current === 'listening', 60000); // she finishes what she is saying
-      await sleep(350); // a short breath between lines
+      await sleep(250); // a short breath between lines
       if (stale() || statusRef.current !== 'live') { handed(false); return; }
       try { c.current.sendUserMessage(`SAY: ${line}`); handed(true); } catch { handed(false); return; }
       await until(() => modeRef.current === 'speaking', 6000); // she starts...
@@ -191,8 +209,8 @@ function Inner({ children }) {
 
   const value = useMemo(() => ({
     availability, status, mode, isSpeaking: status === 'live' && mode === 'speaking', lines, error,
-    start, stop, say, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers,
-  }), [availability, status, mode, lines, error, start, stop, say, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers]);
+    start, stop, prepare, say, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers,
+  }), [availability, status, mode, lines, error, start, stop, prepare, say, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
