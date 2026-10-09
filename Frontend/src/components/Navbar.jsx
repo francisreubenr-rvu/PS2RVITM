@@ -60,7 +60,7 @@ const Navbar = ({ page, onSelect, onOpenMenu, onOpenSummary }) => {
         </button>
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">{isHome ? `${greeting()}${first ? `, ${first}` : business ? `, ${business}` : ''}` : page.label}</h1>
-          <p className="mt-0.5 max-w-xl text-sm text-white/55">{isHome ? 'Your campaigns and what needs you next.' : page.description}</p>
+          <p className="mt-0.5 max-w-xl text-sm text-white/55">{page.description}</p>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             {locked !== null && page.slug !== 'voice' && (
               <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-white/80">

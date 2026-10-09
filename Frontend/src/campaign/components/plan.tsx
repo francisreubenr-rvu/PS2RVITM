@@ -6,7 +6,6 @@ import { useSpeaker } from "../lib/speech";
 import type { Answer, Plan } from "../lib/types";
 import { Badge, Button, Empty, ErrorNote, Fold } from "./ui";
 import { OrbLoader } from "../../orb/orbPresence";
-import LineWaves from "../../components/glow/LineWaves";
 import { CalendarDays, Languages, Lock, Mail, Megaphone, MousePointerClick, Palette, Radio, Store, Target, Users, Volume2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -184,7 +183,6 @@ export function PlanView({ id, go, onBusiness }: { id: string; go: (r: Route) =>
 
       <div className="pl-grid">
         <section className="pl-offer" aria-labelledby="offer-h">
-          <div className="pl-offer-waves" aria-hidden="true"><LineWaves color1="#ffffff" color2="#f0b429" color3="#ffffff" brightness={0.28} speed={0.22} enableMouseInteraction={false} /></div>
           <div className="pl-offer-body">
             <p className="pl-offer-kicker" id="offer-h">The offer</p>
             <p className="pl-offer-big">{offerBig || f.item}</p>

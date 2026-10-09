@@ -499,14 +499,17 @@ export function CampaignView({ id, go, onBusiness }: { id: string; go: (r: Route
 
   return (
     <div className="page campaign">
-      <header className="camp-head">
+      <header className="camp-head cp-hero">
         <div>
-          <p className="kicker">Campaign{business ? ` for ${business}` : ""}</p>
-          <h1 className="display-sm">{assets.length ? `${approvedN} of ${assets.length} approved` : "Not written yet"}</h1>
+          <p className="cp-kicker">Campaign{business ? ` for ${business}` : ""}</p>
           {assets.length ? (
-            <div className="progress-bar camp-bar" aria-hidden="true"><span style={{ width: `${assets.length ? (approvedN / assets.length) * 100 : 0}%` }} /></div>
-          ) : null}
-          {jobsLeft ? <p className="muted small">{jobsLeft} {jobsLeft === 1 ? "job" : "jobs"} still working. This page updates by itself.</p> : null}
+            <>
+              <p className="cp-big big-num">{approvedN}<span>/{assets.length}</span></p>
+              <p className="cp-sub">approved</p>
+              <div className="cp-bar" aria-hidden="true"><span style={{ width: `${(approvedN / assets.length) * 100}%` }} /></div>
+            </>
+          ) : <h1 className="cp-big cp-big-text big-num">Not written yet</h1>}
+          {jobsLeft ? <p className="cp-sub">{jobsLeft} {jobsLeft === 1 ? "job" : "jobs"} still working. Updates by itself.</p> : null}
         </div>
         <div className="camp-actions">
           {missingImages ? <Button onClick={makeAll} disabled={imageBusy}>{imageBusy ? "Queueing pictures" : `Make ${missingImages} ${missingImages === 1 ? "picture" : "pictures"}`}</Button> : null}
@@ -529,15 +532,17 @@ export function CampaignView({ id, go, onBusiness }: { id: string; go: (r: Route
 
       {groups.map((g) => (
         <section key={g.channel} className="channel" aria-labelledby={`ch-${g.channel}`}>
-          <h2 id={`ch-${g.channel}`} className="section-title">{channelLabel(g.channel)}</h2>
-          <p className="channel-sum mono">
-            {[
-              `${g.items.filter(hasText).length}/${g.items.length} written`,
-              `${g.items.filter((a) => a.status === "approved").length} approved`,
-              g.items.some((a) => a.status === "blocked") ? `${g.items.filter((a) => a.status === "blocked").length} blocked` : "",
-              g.items.some((a) => a.review?.status === "flagged") ? `${g.items.filter((a) => a.review?.status === "flagged").length} meaning flagged` : "",
-            ].filter(Boolean).join(" / ")}
-          </p>
+          <div className="cp-ch-head">
+            <h2 id={`ch-${g.channel}`} className="section-title">{channelLabel(g.channel)}</h2>
+            <p className="channel-sum">
+              {[
+                [`${g.items.filter(hasText).length}/${g.items.length} written`, "info"],
+                [`${g.items.filter((a) => a.status === "approved").length} approved`, "good"],
+                g.items.some((a) => a.status === "blocked") ? [`${g.items.filter((a) => a.status === "blocked").length} blocked`, "rose"] : null,
+                g.items.some((a) => a.review?.status === "flagged") ? [`${g.items.filter((a) => a.review?.status === "flagged").length} meaning flagged`, "warn"] : null,
+              ].filter((x): x is string[] => Boolean(x)).map(([t, tone]) => <span key={t} className="cp-pill" data-tone={tone}>{t}</span>)}
+            </p>
+          </div>
           <div className="asset-grid">
             {g.items.map((a) => (
               <AssetCard key={a.id} asset={a} state={states[a.id]} plan={plan} business={business} onChanged={refresh} onMakeImage={makeOne} imageBusy={imageBusy} openJob={openJobs.has(a.id)} failed={failedCopy.has(a.id) ? failedCopy.get(a.id) || "" : null} onRetry={write} />

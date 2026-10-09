@@ -41,7 +41,7 @@
 
 /* White content card used on every page inside the dark panel. */
 @utility card {
-  @apply rounded-2xl p-4 text-ink sm:p-5;
+  @apply rounded-3xl p-5 text-ink sm:p-6;
   background:
     linear-gradient(160deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.08) 45%, rgb(255 255 255 / 0) 70%),
     rgb(251 248 241 / var(--card-alpha));
@@ -146,16 +146,10 @@ body {
   display: none;
 }
 
-/* Pixel trail background. The photograph is toned to the warm ink palette (greyscale, a warm cast, dimmed) so it adds
-   texture and no extra colour; the gradient blobs step aside so the revealed squares are the only thing that moves. */
-.backdrop-trail {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  filter: grayscale(1) sepia(0.5) saturate(0.8) brightness(0.78) contrast(1.05);
-}
-:root[data-backdrop='trail'] .app-backdrop::before,
-:root[data-backdrop='trail'] .app-backdrop::after {
+/* Liquid prism background. The shader paints the whole screen, so the CSS blob layers step aside while it is on screen. */
+.prism-backdrop { position: absolute; inset: 0; }
+:root[data-backdrop='prism'] .app-backdrop::before,
+:root[data-backdrop='prism'] .app-backdrop::after {
   display: none;
 }
 
@@ -410,3 +404,32 @@ body {
   mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent 100%);
 }
 @media (prefers-reduced-motion: reduce) { .fade-scroll { transition: none; } }
+
+/* Shared page language (from the Plan redesign): light glass tiles and one dark hero tile per page, big numerals, soft depth.
+   Existing white tiles inside the main panel pick up the same radius, rim and shadow. */
+main .rounded-2xl.bg-white {
+  border-radius: 1.5rem;
+  border: 1px solid rgb(31 26 20 / 0.08);
+  box-shadow: 0 18px 36px -26px rgb(0 0 0 / 0.45);
+}
+
+@utility tile {
+  @apply rounded-3xl p-5 text-ink sm:p-6;
+  background: color-mix(in srgb, #fff 78%, transparent);
+  border: 1px solid rgb(31 26 20 / 0.09);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 36px -26px rgb(0 0 0 / 0.45);
+}
+
+@utility tile-dark {
+  @apply rounded-3xl p-5 text-white sm:p-6;
+  background: #14141a;
+  box-shadow: 0 30px 60px -34px rgb(0 0 0 / 0.7);
+}
+
+@utility big-num {
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}

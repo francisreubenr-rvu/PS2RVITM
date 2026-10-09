@@ -3,6 +3,7 @@ import { answerQuestion, applyChange, finishInterview, getBoard, getSession, pro
 import { channelLabel, langName, prettyText } from '../../campaign/lib/format';
 import { go, useCurrent } from '../../campaign/lib/current';
 import { navigate } from '../../lib/router';
+import { findPage } from '../../navigation';
 import { looksLikeQuestion, understand } from './intent';
 import { getStrings } from './strings';
 import { useTalkVoice } from './voiceIO';
@@ -23,7 +24,7 @@ let nextId = 1;
 const msg = (role, text, extra = {}) => ({ id: nextId++, role, text, ...extra });
 const hasDetail = (text) => /\d/.test(text) || text.trim().split(/\s+/).length >= 4;
 
-export function useTalk({ sessionId, user }) {
+export function useTalk({ sessionId, user, active = true }) {
   const cur = useCurrent();
   const [lang, setLangState] = useState(readLang);
   const [handsFree, setHandsFreeState] = useState(true); // Talk is always hands-free: the call stays open and the microphone stays live
@@ -80,7 +81,7 @@ export function useTalk({ sessionId, user }) {
   }, [say]);
 
   // ---------------- interview
-  const ask = useCallback(async (s, resumed = false) => {
+  const ask = useCallback(async (s, resumed = false, lead = '') => {
     const q = s.question;
     setSession(s);
     if (!q || s.status === 'complete') {
@@ -95,7 +96,7 @@ export function useTalk({ sessionId, user }) {
     asked.current = key;
     const { t } = getStrings(s.lang);
     const options = q.options?.length ? q.options.map((o) => o.label) : [];
-    let text = `${s.clarify ? `${s.clarify.reason} ` : ''}${q.prompt}`;
+    let text = `${lead ? `${lead} ` : ''}${s.clarify ? `${s.clarify.reason} ` : ''}${q.prompt}`;
     if (options.length) text += ` ${t.optionsRead(options.join(', '))}`;
     await say(text, { spoken: LOCALISED.includes(s.lang) ? s.lang : 'en', extra: { kind: 'question' } });
   }, [say]);
@@ -104,12 +105,11 @@ export function useTalk({ sessionId, user }) {
     setBusy(true);
     try {
       const l = live.current.lang;
-      await say(getStrings(l).t.newStart, { spoken: getStrings(l).lang, listen: false });
       const s = await startInterview(l);
       owned.current = s.id;
       window.history.replaceState(null, '', `#/voice/${encodeURIComponent(s.id)}`); // a refresh resumes this session; no remount, so the conversation stays on screen
       asked.current = '';
-      await ask(await getSession(s.id));
+      await ask(await getSession(s.id), false, getStrings(l).t.newStart); // one message: the opener and the first question together
     } catch (e) {
       await say(getStrings(live.current.lang).t.error(e.message), { spoken: 'en', listen: false });
     } finally {
@@ -198,6 +198,7 @@ export function useTalk({ sessionId, user }) {
   const chatReply = useCallback(async () => {
     const ok = await ensureLive();
     if (!ok || agnez.status === 'error') { const { t } = getStrings(live.current.lang); return say(t.unknown, { extra: { kind: 'unknown' } }); }
+    agnez.openFloor(); // this one is a question for her: let her answer be heard
     replyRef.current = (reply) => push(msg('ai', reply, { provider: 'agnez' }));
   }, [ensureLive, agnez.status, say, push]);
   chatRef.current = chatReply;
@@ -254,6 +255,7 @@ export function useTalk({ sessionId, user }) {
       case 'new_campaign': return startNew();
       case 'navigate': {
         navigate(u.slug); // straight away: the screen changing is the confirmation, and waiting for a voice would make it feel slow
+        void say(`Opening ${findPage(u.slug)?.label || u.slug}.`); // and she says so, so it is clear she heard
         return;
       }
       case 'change': {
@@ -327,22 +329,24 @@ export function useTalk({ sessionId, user }) {
 
   // Arriving from a button that already knows what it wants, or simply arriving with hands-free on: start without a tap. The
   // first visit still needs one tap for the browser's microphone permission; after that, coming to Talk is enough.
-  const autoStarted = useRef(false);
+  // The conversation lives in the app, so this runs each time the person arrives at Talk, not once per mount. If they ended the call
+  // themselves, arriving does not reopen it: the reconnect button is theirs to press.
   useEffect(() => {
-    if (sessionId || autoStarted.current) return;
-    autoStarted.current = true;
+    if (!active || sessionId) return;
     let want = null;
     try { want = sessionStorage.getItem(INTENT_KEY); sessionStorage.removeItem(INTENT_KEY); } catch { /* storage blocked */ }
     if (want) {
+      setEnded(false);
+      live.current.ended = false;
       setStarted(true);
       live.current.started = true;
       if (want === 'change') beginChange();
       else begin();
-    } else if (live.current.handsFree) {
+    } else if (!live.current.started && live.current.handsFree && !live.current.ended) {
       begin();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   // Teardown of the voice call is owned by useAgnez (StrictMode-safe), so there is nothing to end here.
 

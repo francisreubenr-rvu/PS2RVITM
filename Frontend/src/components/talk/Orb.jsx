@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { Mic, PhoneOff, Volume2 } from 'lucide-react';
+import { Mic, MicOff, Pause, PhoneOff, Play, Volume2 } from 'lucide-react';
 import { useAgnez } from '../../voice/agnez';
 import { readAppearance } from '../../lib/appearance';
 import ThinkingOrb from '../../orb/ThinkingOrb';
@@ -78,13 +78,21 @@ const Orb = ({ phase, onClick, onEnd, started, ended, disabled, size = 200 }) =>
               <span className={`absolute inline-flex size-full animate-ping rounded-full opacity-75 ${speaking ? 'bg-amber-300' : 'bg-sky-300'}`} />
               <span className={`relative inline-flex size-2.5 rounded-full ${speaking ? 'bg-amber-300' : 'bg-sky-300'}`} />
             </span>
-            {speaking ? 'Agnez is speaking' : 'Listening to you'}
+            {a.paused ? 'On hold' : a.muted ? 'Microphone off' : speaking ? 'Agnez is speaking' : 'Listening to you'}
           </span>
         )}
         {open && (
-          <button type="button" onClick={onEnd} className="absolute bottom-3 left-1/2 z-20 inline-flex h-9 -translate-x-1/2 items-center gap-2 rounded-full bg-bad px-4 text-sm font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95">
-            <PhoneOff size={15} /> End call
-          </button>
+          <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
+            <button type="button" onClick={() => a.setMute(!a.muted)} disabled={!live || a.paused} aria-pressed={a.muted} aria-label={a.muted ? 'Unmute microphone' : 'Mute microphone'} className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors disabled:opacity-40 ${a.muted ? 'bg-white text-[#14141a]' : 'bg-white/15 text-white hover:bg-white/25'}`}>
+              {a.muted ? <MicOff size={15} /> : <Mic size={15} />} {a.muted ? 'Unmute' : 'Mute'}
+            </button>
+            <button type="button" onClick={() => (a.paused ? a.resume() : a.pause())} disabled={!live} aria-pressed={a.paused} aria-label={a.paused ? 'Resume the call' : 'Pause the call'} className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors disabled:opacity-40 ${a.paused ? 'bg-accent text-on-accent' : 'bg-white/15 text-white hover:bg-white/25'}`}>
+              {a.paused ? <Play size={15} /> : <Pause size={15} />} {a.paused ? 'Resume' : 'Pause'}
+            </button>
+            <button type="button" onClick={onEnd} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-bad px-3.5 text-sm font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95">
+              <PhoneOff size={15} /> End call
+            </button>
+          </div>
         )}
       </div>
       {!open && (

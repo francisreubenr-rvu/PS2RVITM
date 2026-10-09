@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, FileUp, Pencil, Plus, Search, ShieldCheck, Trash2, Upload, UserPlus, X } from 'lucide-react';
+import { Download, FileUp, Languages, Mail, MessageCircle, Pencil, Plus, Search, ShieldCheck, Trash2, Upload, UserPlus, Users, X } from 'lucide-react';
 import { API_URL, api } from '../campaign/lib/api';
 import { Field } from '../components/ui';
 import { LANGS as ALL_LANGS } from '../campaign/lib/format';
@@ -14,11 +14,12 @@ const Chip = ({ on, children }) => (
   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${on ? 'bg-good/12 text-good' : 'bg-ink/8 text-ink/45'}`}>{children}</span>
 );
 
-const Stat = ({ label, value, note }) => (
-  <article className="rounded-2xl bg-white p-4 text-ink">
-    <h3 className="text-sm font-semibold">{label}</h3>
-    <p className="mt-2 text-2xl font-bold tabular-nums">{value}</p>
-    {note && <p className="text-xs text-ink/50">{note}</p>}
+const Stat = ({ label, value, note, tone, icon: Icon }) => (
+  <article className="fig" data-tone={tone}>
+    <span className="fig-ico"><Icon size={18} strokeWidth={2.4} /></span>
+    <p className="fig-n big-num">{value}</p>
+    <p className="fig-l">{label}</p>
+    {note && <p className="mt-1 text-xs text-ink/55">{note}</p>}
   </article>
 );
 
@@ -221,10 +222,10 @@ const Customers = () => {
 
       {s && (
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Totals">
-          <Stat label="People" value={s.total} note={`${s.with_phone} with a phone, ${s.with_email} with an email`} />
-          <Stat label="Can get WhatsApp" value={s.whatsapp_ok} note="agreed, with a valid number" />
-          <Stat label="Can get email" value={s.email_ok} note="agreed, with a valid address" />
-          <Stat label="Languages" value={Object.keys(s.languages).filter((l) => l !== 'unknown').length || '–'} note={Object.entries(s.languages).map(([k, n]) => `${LANG[k] ?? 'not set'} ${n}`).join(', ') || 'none yet'} />
+          <Stat tone="accent" icon={Users} label="People" value={s.total} note={`${s.with_phone} with a phone, ${s.with_email} with an email`} />
+          <Stat tone="good" icon={MessageCircle} label="Can get WhatsApp" value={s.whatsapp_ok} note="agreed, with a valid number" />
+          <Stat tone="info" icon={Mail} label="Can get email" value={s.email_ok} note="agreed, with a valid address" />
+          <Stat tone="warn" icon={Languages} label="Languages" value={Object.keys(s.languages).filter((l) => l !== 'unknown').length || '–'} note={Object.entries(s.languages).map(([k, n]) => `${LANG[k] ?? 'not set'} ${n}`).join(', ') || 'none yet'} />
         </section>
       )}
 

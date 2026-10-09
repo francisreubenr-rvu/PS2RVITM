@@ -29,14 +29,29 @@ function Inner({ children }) {
   const retry = useRef(null); // one retry without the language override
   const statusRef = useRef('idle');
   const modeRef = useRef('listening'); // the agent's own state, readable inside the speech queue
+  // Her voice is gated: audible only while she speaks a line GrowIt handed her (or answers a question the person asked). Anything
+  // else the shared agent decides to say on its own, such as an acknowledgement after each answer, stays silent.
+  const gateOpen = useRef(false);
+  const userVolume = useRef(1); // the "Agnez speaks" switch
+  const [muted, setMutedState] = useState(false); // the person's microphone is off
+  const [paused, setPausedState] = useState(false); // the call is on hold: no one hears, nothing is spoken
+  const mutedRef = useRef(false);
+  const pausedRef = useRef(false);
+  const inFlight = useRef(''); // the line she is speaking now, so a pause in the middle of it can say it again on resume
+  const replay = useRef('');
   const queue = useRef(Promise.resolve()); // lines handed to Agnez, spoken one at a time
   const generation = useRef(0); // bumped when the call ends, so lines still waiting in the queue are dropped
   const sessionConfig = useRef(null);
   const warm = useRef(null); // { at, promise } of a token fetched ahead of time
   const setS = (s) => { statusRef.current = s; setStatus(s); };
 
+  const pending = useRef(0); // lines waiting in the speech queue
+  const applyVolume = () => { try { c.current?.setVolume({ volume: userVolume.current && gateOpen.current && !pausedRef.current ? 1 : 0 }); } catch { /* not fatal */ } };
+  const micTo = (off) => { try { c.current?.setMuted(off); } catch { /* not fatal */ } };
+  const resetHold = () => { mutedRef.current = false; pausedRef.current = false; inFlight.current = ''; replay.current = ''; setMutedState(false); setPausedState(false); };
+
   const conv = useConversation({
-    onConnect: () => { setS('live'); waiter.current?.(true); waiter.current = null; },
+    onConnect: () => { applyVolume(); setS('live'); waiter.current?.(true); waiter.current = null; },
     onDisconnect: () => {
       if (closing.current) return;
       retry.current = null;
@@ -45,9 +60,12 @@ function Inner({ children }) {
     },
     onError: (m) => { setError(String(m?.message || m || 'The voice call hit a problem.')); },
     onMessage: ({ message, source, role }) => {
-      const text = String(message || '').trim();
+      // The agent's voice model can emit expressive cues such as [calm] or [slow]. They are directions, not words: never show them.
+      const text = String(message || '').replace(/\[[^\]\n]{1,24}\]/g, ' ').replace(/\s{2,}/g, ' ').trim();
       if (!text) return;
       if ((source || role) === 'user') {
+        gateOpen.current = false; // the person has the floor: nothing she adds on her own is heard
+        applyVolume();
         setLines((l) => [...l.slice(-5), { who: 'you', text }]);
         handlers.current.onUser?.(text);
       } else {
@@ -106,6 +124,8 @@ function Inner({ children }) {
     setError('');
     setLines([]);
     modeRef.current = 'listening';
+    gateOpen.current = false;
+    resetHold();
     setMode('listening');
     setS('connecting');
     closing.current = false;
@@ -157,6 +177,7 @@ function Inner({ children }) {
     retry.current = null;
     waiter.current?.(false); waiter.current = null;
     try { await c.current.endSession(); } catch { /* already closed */ }
+    resetHold();
     if (statusRef.current !== 'error') setS('idle');
     modeRef.current = 'listening';
     setMode('listening');
@@ -179,20 +200,50 @@ function Inner({ children }) {
       return false;
     };
     let handed;
+    pending.current += 1;
+    const queueBusy = () => pending.current > 1;
     const sent = new Promise((res) => { handed = res; });
     const run = async () => {
       await until(() => statusRef.current !== 'connecting', 8000);
       if (stale() || statusRef.current !== 'live') { handed(false); return; }
-      await until(() => modeRef.current === 'listening', 60000); // she finishes what she is saying
+      await until(() => !pausedRef.current, 3600000); // on hold: wait to be resumed
+      await until(() => modeRef.current === 'listening', gateOpen.current ? 60000 : 2500); // she finishes what she is saying; a silent aside is not worth waiting for
       await sleep(250); // a short breath between lines
       if (stale() || statusRef.current !== 'live') { handed(false); return; }
+      gateOpen.current = true;
+      applyVolume();
+      inFlight.current = line;
       try { c.current.sendUserMessage(`SAY: ${line}`); handed(true); } catch { handed(false); return; }
       await until(() => modeRef.current === 'speaking', 6000); // she starts...
       await until(() => modeRef.current === 'listening', 90000); // ...and finishes before the next line goes out
+      inFlight.current = '';
+      if (!stale() && !queueBusy()) { gateOpen.current = false; applyVolume(); }
     };
-    queue.current = queue.current.then(run, run);
+    queue.current = queue.current.then(run, run).finally(() => { pending.current -= 1; });
     return sent;
   }, []);
+
+  // The person's own controls. Mute turns their microphone off. Pause holds the whole call: the microphone and her voice go quiet,
+  // lines wait in the queue, and a line she was in the middle of is said again from its start on resume.
+  const setMute = useCallback((off) => { mutedRef.current = off; setMutedState(off); micTo(off || pausedRef.current); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const pause = useCallback(() => {
+    if (statusRef.current !== 'live' || pausedRef.current) return;
+    if (modeRef.current === 'speaking' && inFlight.current) replay.current = inFlight.current;
+    pausedRef.current = true;
+    setPausedState(true);
+    micTo(true);
+    applyVolume();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const resume = useCallback(() => {
+    if (!pausedRef.current) return;
+    pausedRef.current = false;
+    setPausedState(false);
+    micTo(mutedRef.current);
+    applyVolume();
+    const again = replay.current;
+    replay.current = '';
+    if (again) void say(again);
+  }, [say]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Quiet context for the agent: does not interrupt her.
   const sendContext = useCallback((text) => {
@@ -202,15 +253,17 @@ function Inner({ children }) {
   }, []);
 
   const interrupt = useCallback(() => { try { c.current.sendUserActivity(); } catch { /* not fatal */ } }, []);
-  const setVolume = useCallback((volume) => { try { c.current.setVolume({ volume }); } catch { /* not fatal */ } }, []);
+  const setVolume = useCallback((volume) => { userVolume.current = volume; applyVolume(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Let her answer a question the person asked, in her own words. The gate closes again at their next turn.
+  const openFloor = useCallback(() => { gateOpen.current = true; applyVolume(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const inputVolume = useCallback(() => { try { return c.current.getInputVolume() || 0; } catch { return 0; } }, []);
   const outputVolume = useCallback(() => { try { return c.current.getOutputVolume() || 0; } catch { return 0; } }, []);
   const setHandlers = useCallback((h) => { handlers.current = h || {}; }, []);
 
   const value = useMemo(() => ({
-    availability, status, mode, isSpeaking: status === 'live' && mode === 'speaking', lines, error,
-    start, stop, prepare, say, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers,
-  }), [availability, status, mode, lines, error, start, stop, prepare, say, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers]);
+    availability, status, mode, isSpeaking: status === 'live' && mode === 'speaking', lines, error, muted, paused,
+    start, stop, prepare, say, openFloor, setMute, pause, resume, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers,
+  }), [availability, status, mode, lines, error, muted, paused, start, stop, prepare, say, openFloor, setMute, pause, resume, sendContext, interrupt, setVolume, inputVolume, outputVolume, setHandlers]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

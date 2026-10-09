@@ -33,6 +33,8 @@ import { useRoute, navigate } from './lib/router';
 import { useAuth } from './lib/auth';
 import { landingFor } from './lib/tour';
 import Walkthrough from './components/tour/Walkthrough';
+import { TalkProvider } from './components/talk/TalkContext';
+import AgnezDock from './components/talk/AgnezDock';
 import Intro from './components/intro/Intro';
 import { INTRO_START, markIntroSeen, setIntroActive, shouldPlayIntro } from './lib/intro';
 
@@ -127,8 +129,11 @@ const AppInner = () => {
   const page = findPage(slug === 'change' ? 'voice' : slug) ?? pages.home;
   const Screen = SCREENS[page.slug];
 
+  const onTalk = slug === 'voice' || slug === 'change';
+
   return (
     <MotionConfig reducedMotion="user">
+      <TalkProvider user={me.user} sessionId={onTalk ? param : undefined} active={onTalk}>
       <Backdrop />
       <div className="flex min-h-dvh gap-4 p-3 sm:p-4 lg:h-dvh">
         <Sidebar
@@ -160,7 +165,9 @@ const AppInner = () => {
         <RightPanel drawerOpen={summaryOpen} onCloseDrawer={closeSummary} />
       </div>
       {/* The guided tour waits until the entry chooser is done, so it never moves the page mid-decision. */}
+      {slug !== 'start' && !onTalk && <AgnezDock hideIdle={slug === 'home'} />}
       {slug !== 'start' && <Walkthrough user={me.user} />}
+      </TalkProvider>
     </MotionConfig>
   );
 };

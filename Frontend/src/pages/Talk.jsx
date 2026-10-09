@@ -5,8 +5,7 @@ import { HeardList } from '../campaign/components/talk';
 import { LANGS, MAIN_LANGS, MORE_LANGS } from '../campaign/lib/format';
 import { Toggle } from '../components/ui';
 import Orb from '../components/talk/Orb';
-import { useTalk } from '../components/talk/useTalk';
-import { useAuth } from '../lib/auth';
+import { useTalkContext } from '../components/talk/TalkContext';
 
 const LOCALISED = ['en', 'hi', 'kn'];
 
@@ -32,8 +31,7 @@ const Bubble = ({ m, onReplay }) => {
 // S3: Talk. The one place for everything spoken: start a campaign, change one, open a screen. GrowIt speaks every line and, in
 // hands-free mode, listens again as soon as it has finished, like a phone call. Everything is also on screen, and you can type.
 const TalkScreen = ({ id }) => {
-  const { me } = useAuth();
-  const t = useTalk({ sessionId: id, user: me?.user });
+  const t = useTalkContext();
   const [text, setText] = useState('');
   const [picked, setPicked] = useState([]);
   const [typing, setTyping] = useState(false);

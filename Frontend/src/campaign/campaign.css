@@ -379,9 +379,7 @@ body.no-scroll { overflow: hidden; }
 .cv .pl-tile-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
 .cv .pl-tile-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--s2); margin-bottom: var(--s4); }
 
-.cv .pl-offer { position: relative; overflow: hidden; border-radius: 28px; background: #14141a; color: #fff; min-height: 300px; box-shadow: 0 30px 60px -34px rgba(0,0,0,.7); }
-.cv .pl-offer-waves { position: absolute; inset: 0; opacity: .75; }
-.cv .pl-offer::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(20,20,26,.92) 0%, rgba(20,20,26,.55) 55%, rgba(20,20,26,.1) 100%); pointer-events: none; }
+.cv .pl-offer { position: relative; overflow: hidden; border-radius: 28px; background: radial-gradient(34rem 20rem at 92% 8%, color-mix(in srgb, var(--color-accent) 30%, transparent), transparent 62%), radial-gradient(26rem 18rem at 0% 110%, color-mix(in srgb, var(--color-info) 22%, transparent), transparent 62%), #14141a; color: #fff; min-height: 300px; box-shadow: 0 30px 60px -34px rgba(0,0,0,.7); }
 .cv .pl-offer-body { position: relative; z-index: 1; display: grid; gap: var(--s3); align-content: end; height: 100%; padding: var(--s6) var(--s5) var(--s5); }
 .cv .pl-offer-kicker { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.65); }
 .cv .pl-offer-big { font-size: clamp(56px, 12vw, 108px); line-height: .94; font-weight: 700; letter-spacing: -0.04em; overflow-wrap: anywhere; }
@@ -446,3 +444,26 @@ body.no-scroll { overflow: hidden; }
   .cv .pl-lock > :last-child { grid-column: 3; grid-row: 1 / span 2; min-width: 260px; }
   .cv .pl { padding-bottom: 0; }
 }
+
+/* Campaign: a dark hero with the approved count as the first read, coloured channel pills, wider asset cards. */
+.cv .cp-hero { position: relative; overflow: hidden; padding: 1.75rem 1.5rem; border-radius: 28px; color: #fff; background: radial-gradient(60rem 18rem at 85% -20%, color-mix(in srgb, var(--color-accent) 38%, transparent), transparent 60%), radial-gradient(40rem 16rem at 0% 120%, color-mix(in srgb, var(--color-good) 30%, transparent), transparent 60%), #14141a; box-shadow: 0 30px 60px -34px rgba(0,0,0,.7); align-items: center !important; }
+.cv .cp-hero > div:first-child { max-width: none; }
+.cv .cp-kicker { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.65); }
+.cv .cp-big { font-size: clamp(64px, 12vw, 120px); margin-top: .3rem; }
+.cv .cp-big span { font-size: .45em; opacity: .55; letter-spacing: -0.02em; }
+.cv .cp-big-text { font-size: clamp(36px, 6vw, 60px); }
+.cv .cp-sub { font-size: 15px; color: rgba(255,255,255,.7); }
+.cv .cp-bar { height: 12px; margin: .8rem 0 .5rem; max-width: 520px; border-radius: 999px; background: rgba(255,255,255,.16); overflow: hidden; }
+.cv .cp-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--color-good), var(--color-accent)); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+.cv .cp-hero .cvb { background: rgba(255,255,255,.14); color: #fff; }
+.cv .cp-hero .cvb:hover:not(:disabled) { background: rgba(255,255,255,.24); }
+.cv .cp-ch-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: var(--s3); }
+.cv .cp-ch-head .section-title { margin: 0; }
+.cv .channel-sum { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv .cp-pill { padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; --t: var(--color-accent); background: color-mix(in srgb, var(--t) 22%, #fff); color: color-mix(in srgb, var(--t) 60%, #000); }
+.cv .cp-pill[data-tone="info"] { --t: var(--color-info); }
+.cv .cp-pill[data-tone="good"] { --t: var(--color-good); }
+.cv .cp-pill[data-tone="rose"] { --t: var(--color-rose); }
+.cv .cp-pill[data-tone="warn"] { --t: var(--color-warn); }
+.cv .asset-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) !important; }
+.cv .asset { border-radius: 24px; max-width: 760px; }
