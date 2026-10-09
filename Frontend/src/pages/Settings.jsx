@@ -1,10 +1,10 @@
+import { OrbCursor, OrbLoader } from '../orb/orbPresence';
 import { useCallback, useEffect, useState } from 'react';
-import { KeyRound, ShieldCheck, CircleAlert, Trash2, Loader2, Mic, Check, RotateCcw, Compass } from 'lucide-react';
+import { KeyRound, ShieldCheck, CircleAlert, Trash2, Mic, Check, RotateCcw, Compass } from 'lucide-react';
 import ColorPicker from '../components/ColorPicker.jsx';
 import { CardTitle, Field, Tabs, Banner, Toggle } from '../components/ui';
 import { api, API_URL, runEvals } from '../campaign/lib/api';
 import { LANGS } from '../campaign/lib/format';
-import { readVoicePref, saveVoicePref } from '../campaign/lib/voice';
 import { ACCENTS, BACKDROPS, DEFAULTS, SURFACES, useAppearance } from '../lib/appearance';
 import { startTour } from '../lib/tour';
 import { replayIntro } from '../lib/intro';
@@ -12,7 +12,7 @@ import { replayIntro } from '../lib/intro';
 const TABS = ['Appearance', 'Providers', 'Voice', 'Calibration', 'Guardrails'];
 
 const CAPABILITY = {
-  text: { title: 'Text', model: 'agnes-3.0-flash', note: 'Copy, interview extraction, meaning check, change by voice.' },
+  text: { title: 'Text reasoning', model: 'qwen/qwen3.8-27b', note: 'Planning, campaign writing, interview extraction, reviews and Talk use Qwen through Groq.' },
   image: { title: 'Images', model: 'agnes-image-2.5-flash', note: 'Backgrounds for posts, stories, posters, blog covers.' },
   video: { title: 'Video', model: 'agnes-video-2.5-flash', note: 'Reel clips. Free tier allows 1 request a minute.' },
 };
@@ -69,11 +69,11 @@ const ProviderCard = ({ cap, row, onSaved }) => {
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button type="button" disabled={!key.trim() || busy} onClick={save} className="btn-primary">
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <KeyRound size={15} />} Save key
+          {busy ? <OrbCursor active kind="writing" label="Working" /> : <KeyRound size={15} />} Save key
         </button>
         {row.key_set && (
           <button type="button" disabled={busy} onClick={remove} className="btn-ghost">
-            <Trash2 size={15} /> Remove key
+            {busy ? <OrbCursor active kind="writing" label="Removing" /> : <Trash2 size={15} />} Remove key
           </button>
         )}
       </div>
@@ -110,9 +110,9 @@ const ServicesCard = () => {
     <section className="card xl:col-span-2">
       <CardTitle sub="Switch a service off to stop the app using it, even if its key is set.">Other services</CardTitle>
       {error && <p role="alert" className="mb-2 text-sm text-bad">{error}</p>}
-      {!rows && !error && <p className="text-sm text-ink/55">Loading.</p>}
+      {!rows && !error && <OrbLoader kind="loading" label="Loading your services" className="mx-auto w-fit rounded-2xl bg-white" />}
       <ul className="flex flex-col gap-2">
-        {rows?.map((r) => (
+        {rows?.filter((r) => r.name !== 'gemini').map((r) => (
           <li key={r.name} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-ink/5 px-3 py-3">
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
@@ -120,7 +120,7 @@ const ServicesCard = () => {
                 {r.configured ? <Badge tone={r.active ? 'good' : 'neutral'}>{r.active ? 'On' : 'Off'}</Badge> : <Badge>No key on the server</Badge>}
               </p>
               <p className="text-xs text-ink/60">{r.used_for}</p>
-              {!r.configured && <p className="text-xs text-ink/50">Add {r.name === 'groq' ? 'GROQ_API_KEY' : 'GEMINI_API_KEY'} to the server's .env, then restart it.</p>}
+              {!r.configured && <p className="text-xs text-ink/50">Add {r.name === 'groq' ? 'GROQ_API_KEY' : r.name === 'elevenlabs' ? 'AGNEZ_ELEVENLABS_API_KEY' : 'GEMINI_API_KEY'} to the server's .env, then restart it.</p>}
             </div>
             <Toggle checked={r.enabled} onChange={(v) => flip(r.name, v)} label={`Use ${r.label}`} />
           </li>
@@ -134,116 +134,42 @@ const ProvidersTab = ({ data, reload }) => (
   <div className="grid gap-4 xl:grid-cols-2">
     {Object.keys(CAPABILITY).map((cap) => {
       const row = data.providers.find((p) => p.capability === cap) || { key_set: false };
+      if (cap === 'text') return (
+        <section key={cap} className="card">
+          <CardTitle sub={CAPABILITY.text.model} action={<Badge tone={row.active ? 'good' : 'neutral'}>{row.active ? 'Enabled' : row.configured ? 'Off' : 'Not configured'}</Badge>}>Text reasoning</CardTitle>
+          <p className="text-sm text-ink/65">{CAPABILITY.text.note}</p>
+          <p className="mt-3 text-xs text-ink/60">The server manages the Groq key. The Groq switch below controls text processing. No other model is used.</p>
+        </section>
+      );
       return <ProviderCard key={cap} cap={cap} row={row} onSaved={reload} />;
     })}
     <ServicesCard />
     <section className="card">
-      <CardTitle sub="Agnes has no audio models">Speech</CardTitle>
-      <p className="text-sm text-ink/65">Speech to text uses the browser microphone, or offline Vosk on this machine. Read-back uses the browser voice. Other speech providers are not connected yet.</p>
+      <CardTitle sub="ElevenLabs Agnez">Speech</CardTitle>
+      <p className="text-sm text-ink/65">Agnez is the ElevenLabs voice throughout the app. Enable ElevenLabs to speak and dictate. If it is unavailable, type your answer.</p>
     </section>
   </div>
 );
 
-const ENGINE_LABEL = { vosk: 'Offline (Vosk)', groq: 'Groq Whisper (cloud)', elevenlabs: 'ElevenLabs Scribe (cloud)' };
-const PREFS = [
-  { id: 'auto', label: 'Automatic', hint: 'Kannada goes to Groq when it is on. Other languages use the browser microphone, else the server.' },
-  { id: 'server', label: 'Always the server', hint: 'Record, then transcribe on the server (offline Vosk, or Groq for Kannada). Nothing live while you talk.' },
-  { id: 'browser', label: 'Browser only', hint: 'Use only the browser speech recognition. Kannada may be unreliable.' },
-];
-
-const EnginesCard = () => {
-  const [map, setMap] = useState(null);
-  const [pref, setPref] = useState(readVoicePref);
+const VoiceTab = () => {
+  const [agent, setAgent] = useState(null); // null while checking, then { available, reason }
   useEffect(() => {
-    api('/stt/languages').then(setMap).catch(() => setMap(false));
+    api('/talk/agent').then(setAgent).catch((e) => setAgent({ available: false, reason: e.message }));
   }, []);
-  const choose = (id) => {
-    saveVoicePref(id);
-    setPref(id);
-  };
   return (
-    <section className="card xl:col-span-2">
-      <CardTitle sub="What turns your voice into text, per language, right now.">Microphone engine</CardTitle>
-      {map === false && <p role="alert" className="text-sm text-bad">The server did not answer.</p>}
-      {map && (
-        <>
-        <ul className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {LANGS.map((l) => (
-            <li key={l.code} className="rounded-xl bg-ink/5 px-3 py-2.5 text-sm">
-              <span className="font-semibold">{l.name}</span>{l.draft && <span className="ml-1.5 text-[11px] text-warn">draft</span>}
-              <span className="mt-0.5 block text-xs text-ink/60">{map.engines[l.code] ? ENGINE_LABEL[map.engines[l.code]] : 'Browser mic, or switch Groq on'}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mb-4 text-xs text-ink/55">Voice out (read-back): Gemini when it is switched on under Other services, otherwise your browser's own voice. Languages marked draft have fact-check words that a native speaker has not read yet.</p>
-        </>
-      )}
-      <div role="radiogroup" aria-label="Microphone engine" className="flex flex-col gap-2">
-        {PREFS.map((p) => (
-          <label key={p.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 text-sm ${pref === p.id ? 'border-accent bg-accent-soft/50' : 'border-ink/10'}`}>
-            <input type="radio" name="voice-engine" checked={pref === p.id} onChange={() => choose(p.id)} className="mt-1 accent-[var(--color-accent)]" />
-            <span><span className="font-medium">{p.label}</span><span className="block text-xs text-ink/60">{p.hint}</span></span>
-          </label>
-        ))}
+    <section className="card max-w-2xl">
+      <CardTitle sub="The only voice in GrowIt. It speaks to you and it hears you, on every screen.">Agnez</CardTitle>
+      <div className="flex items-center justify-between rounded-xl bg-ink/5 px-3 py-2.5 text-sm">
+        <span className="font-medium">Connection</span>
+        {agent === null ? <Badge>Checking</Badge> : agent.available ? <Badge tone="good">Connected</Badge> : <Badge tone="warn">Not set up</Badge>}
       </div>
+      {agent && !agent.available && <p role="alert" className="mt-3 text-sm text-ink/70">{agent.reason || 'The ElevenLabs agent is not configured on this server.'} Typing works everywhere in the meantime.</p>}
+      <ul className="mt-4 flex flex-col gap-2 text-sm text-ink/70">
+        <li>Talk keeps one call open: the microphone stays live and you can interrupt Agnez at any time.</li>
+        <li>Change by voice, Launch, Agent and Replies open a short call to hear you, then close it.</li>
+        <li>The agent and its key stay on the server. This page only receives a short-lived token.</li>
+      </ul>
     </section>
-  );
-};
-
-const VoiceTab = ({ data }) => {
-  const [lang, setLang] = useState('en');
-  const [state, setState] = useState(null);
-  const installed = data.stt_offline.languages;
-
-  const test = async (file) => {
-    if (!file) return;
-    setState({ busy: true });
-    const form = new FormData();
-    form.append('audio', file);
-    form.append('lang', lang);
-    try {
-      const r = await fetch(`${API_URL}/stt`, { method: 'POST', body: form, credentials: 'include' });
-      const body = await r.json();
-      if (!r.ok) throw new Error(body?.detail?.message || 'Request failed');
-      setState({ text: body.text || '(no speech found)', ms: body.latency_ms, model: body.model });
-    } catch (e) {
-      setState({ error: e.message });
-    }
-  };
-
-  return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <EnginesCard />
-      <section className="card">
-        <CardTitle sub="Runs on this machine. No audio leaves it.">Offline speech to text (Vosk)</CardTitle>
-        <ul className="flex flex-col gap-2 text-sm">
-          {LANGS.filter((l) => ['en', 'hi', 'gu', 'te'].includes(l.code)).map((l) => (
-            <li key={l.code} className="flex items-center justify-between rounded-xl bg-ink/5 px-3 py-2.5">
-              <span className="font-medium">{l.name}</span>
-              {installed.includes(l.code) ? <Badge tone="good">installed</Badge> : <Badge>not installed</Badge>}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-xs text-ink/55">Install models with <code>python apps/api/scripts/get_vosk_models.py</code>. Vosk has models for English, Hindi, Gujarati and Telugu. Every other language uses Groq (when switched on) or your browser's mic.</p>
-      </section>
-      <section className="card">
-        <CardTitle sub="Upload a 16-bit WAV to see what Vosk hears.">Try it</CardTitle>
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label="Language">
-            <select value={lang} onChange={(e) => setLang(e.target.value)} className="field">
-              {installed.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </Field>
-          <label className="btn-ghost cursor-pointer">
-            <Mic size={15} /> Choose WAV
-            <input type="file" accept="audio/wav,.wav" className="sr-only" onChange={(e) => test(e.target.files?.[0])} disabled={!installed.length} />
-          </label>
-        </div>
-        {state?.busy && <p className="mt-3 text-sm text-ink/60">Listening.</p>}
-        {state?.text && <p className="mt-3 rounded-xl bg-ink/5 p-3 text-sm">{state.text} <span className="text-xs text-ink/50">({state.model}, {state.ms} ms)</span></p>}
-        {state?.error && <p role="alert" className="mt-3 text-sm text-bad">{state.error}</p>}
-      </section>
-    </div>
   );
 };
 
@@ -252,7 +178,7 @@ const CalibrationTab = () => {
   useEffect(() => {
     api('/calibration').then(setC).catch(() => setC(false));
   }, []);
-  if (c === null) return <p className="text-sm text-white/60">Loading.</p>;
+  if (c === null) return <OrbLoader kind="loading" label="Loading calibration" className="mx-auto w-fit rounded-2xl bg-white" />;
   if (c === false) return <Banner tone="warn">Calibration is not available.</Banner>;
   return (
     <section className="card">
@@ -301,10 +227,11 @@ const GuardrailsTab = () => {
   }, []);
   return (
     <section className="card">
-      <CardTitle sub="Offline replays of the guards on synthetic data. They need no key and no network." action={<button type="button" disabled={busy} onClick={run} className="btn-dark h-9 px-4 text-sm">{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Run again</button>}>
+      <CardTitle sub="Offline replays of the guards on synthetic data. They need no key and no network." action={<button type="button" disabled={busy} onClick={run} className="btn-dark h-9 px-4 text-sm">{busy ? <OrbCursor active kind="writing" label="Working" /> : <ShieldCheck size={14} />} Run again</button>}>
         Guardrail checks
       </CardTitle>
       {error && <p role="alert" className="text-sm text-bad">{error}</p>}
+      {busy && !out && <OrbLoader kind="thinking" label="Running the guard checks" className="mx-auto w-fit rounded-2xl bg-white" />}
       {out && (
         <>
           <p role="status" className={`mb-3 rounded-xl px-3 py-2 text-sm font-medium ${out.ok ? 'bg-good/12' : 'bg-bad/12'}`}>{out.ok ? 'Every guard held.' : 'A guard failed. Read the failures below.'}</p>
@@ -393,19 +320,10 @@ const AppearanceTab = () => {
       <section className="card">
         <CardTitle sub="What sits behind the glass.">Background</CardTitle>
         <Choices name="Background" options={BACKDROPS} value={look.backdrop} onChange={(backdrop) => setLook({ backdrop })} />
-        <div className={`mt-3 flex items-center justify-between gap-3 rounded-xl border border-ink/10 px-3 py-2.5 text-sm ${look.backdrop === 'animated' ? '' : 'opacity-50'}`}>
-          <span>
-            <span className="font-medium">Reacts to the cursor</span>
-            <span className="block text-xs text-ink/60">
-              {look.backdrop === 'animated' ? 'The gradient swirls and glows where you move the pointer.' : 'Only works with the moving gradient.'}
-            </span>
-          </span>
-          <Toggle checked={look.reactive} onChange={(reactive) => setLook({ reactive })} label="Background reacts to the cursor" />
-        </div>
       </section>
       <section className="card xl:col-span-2">
         <CardTitle
-          sub="A short guided tour of the app and the Talk, Plan, Campaign 0, Dashboard flow, in English, Kannada or Hindi. It reads each step aloud if your device has a voice."
+          sub="A short guided tour of the app and the Talk, Plan, Campaign, Dashboard flow, in English, Kannada or Hindi. Agnez can read each step aloud when ElevenLabs is enabled."
           action={
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={startTour} className="btn-ghost h-9 px-4 text-sm">
@@ -435,14 +353,14 @@ const Settings = () => {
   return (
     <div className="flex flex-col gap-4">
       {data && !data.default_agnes_key_configured && !data.providers.some((p) => p.key_set) && (
-        <Banner tone="warn">No Agnes key is set on the server. Paste your own below to start writing.</Banner>
+        <Banner tone="warn">Agnes image and video generation is not configured. Add a visual-generation key in Providers.</Banner>
       )}
       {error && <Banner tone="warn">{error}</Banner>}
       <Tabs tabs={TABS} active={tab} onChange={setTab} dark />
       {tab === 'Appearance' && <AppearanceTab />}
-      {!data && !error && tab !== 'Appearance' && <p className="text-sm text-white/60">Loading.</p>}
+      {!data && !error && tab === 'Providers' && <OrbLoader kind="loading" label="Loading your keys" className="mx-auto w-fit rounded-2xl bg-white" />}
       {data && tab === 'Providers' && <ProvidersTab data={data} reload={load} />}
-      {data && tab === 'Voice' && <VoiceTab data={data} />}
+      {data && tab === 'Voice' && <VoiceTab />}
       {tab === 'Calibration' && <CalibrationTab />}
       {tab === 'Guardrails' && <GuardrailsTab />}
     </div>

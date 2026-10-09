@@ -12,6 +12,8 @@ as approval.
 """
 from __future__ import annotations
 
+from app.agnes import text_ready
+
 import asyncio
 import json
 import re
@@ -219,10 +221,8 @@ async def start_panel(campaign_id: str, request: Request) -> dict:
         raise fail("not_found", "No campaign with that id.", 404)
     if not plan.get_plan(db, campaign_id):
         raise fail("no_plan", "No plan for this campaign.", 409)
-    if not request.app.state.settings.agnes_api_key:
-        from app.extras import key_override
-        if not key_override(db, "text"):
-            raise fail("agnes_not_configured", "Add an Agnes key to run the review panel.", 409)
+    if not text_ready(request.app):
+        raise fail("brain_not_configured", "Groq Qwen is off or has no server key.", 503)
     spawn(request.app, run_panel(request.app, campaign_id))
     return {"started": True}
 

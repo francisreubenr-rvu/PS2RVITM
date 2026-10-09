@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { FlaskConical, Play, Loader2, Check, Star } from 'lucide-react';
+import { FlaskConical, Play, Check, Star } from 'lucide-react';
 import { CardTitle, Banner, Tabs } from '../components/ui';
+import { OrbCursor } from '../orb/orbPresence';
 import { bakeoffStt, bakeoffTts, sampleSentences } from '../data/mock';
 
 // S14: team tool, hidden from the owner behind a flag. Scores STT on offer-critical words and TTS by native ratings.
@@ -24,7 +25,7 @@ const Bakeoff = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs tabs={['KN', 'HI', 'EN']} active={lang} onChange={setLang} dark />
         <button type="button" disabled={running} onClick={run} className="btn-primary">
-          {running ? <Loader2 size={16} className="animate-spin" /> : <FlaskConical size={16} />} Run all providers
+          {running ? <OrbCursor active kind="thinking" label="Running the providers" /> : <FlaskConical size={16} />} Run all providers
         </button>
       </div>
 

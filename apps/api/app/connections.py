@@ -213,7 +213,8 @@ def _save(db: Database, owner: str, token: str, expires_in: int, profile: dict[s
 
 
 def _view(row: dict[str, Any] | None) -> dict[str, Any]:
-    base = {"provider": "instagram", "label": "Instagram", "configured": configured(), "connected": False}
+    base = {"provider": "instagram", "label": "Instagram", "configured": configured(), "connected": False,
+            "missing": [n for n in ("INSTAGRAM_APP_ID", "INSTAGRAM_APP_SECRET") if not _env(n)]}
     if not row:
         return base
     expires = datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None
@@ -245,7 +246,7 @@ def connections(request: Request) -> dict:
         {"provider": "whatsapp", "label": "WhatsApp", "mode": "click_to_chat", "connected": True, "configured": True, "link_reachable": whatsapp.link_reachable(),
          "note": "Opens your own WhatsApp with the message ready. You press send. The WhatsApp Business API is not connected."},
         {"provider": "facebook", "label": "Facebook", "connected": False, "configured": False, "coming_soon": True},
-    ], "setup": {"redirect_uri": _redirect_uri(request), "scope": SCOPE,
+    ], "setup": {"redirect_uri": _redirect_uri(request), "youtube_redirect_uri": youtube._redirect_uri(request), "scope": SCOPE,
                  "needs": "A Meta app with the Instagram product, and an Instagram Business or Creator account added as a tester."}}
 
 

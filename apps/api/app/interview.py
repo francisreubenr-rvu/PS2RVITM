@@ -5,6 +5,8 @@ any number, date or weekday that the owner did not say.
 """
 from __future__ import annotations
 
+from app.agnes import text_ready
+
 import json
 import re
 import uuid
@@ -621,7 +623,7 @@ def _record(db: Database, sid: str, q: Q, body: AnswerIn, reading: Reading) -> N
 
 
 def _agnes(request: Request) -> Any:
-    return request.app.state.agnes if request.app.state.settings.agnes_api_key else None
+    return request.app.state.agnes if text_ready(request.app) else None
 
 
 def _cross_check(q: Q, fields: dict[str, Any], reading: Reading) -> Reading:

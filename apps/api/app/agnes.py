@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -47,10 +48,15 @@ class Agnes:
         self.buckets = buckets
         self.db = db
 
+    @property
+    def text_ready(self) -> bool:
+        from app.extras import toggle_state
+        return toggle_state(self.db, "groq")["active"]
+
     def _require_key(self) -> str:
         # A key saved in Settings (bring your own) wins over the server's .env key.
         from app.extras import key_override
-        for capability in ("text", "image", "video"):
+        for capability in ("image", "video"):
             saved = key_override(self.db, capability)
             if saved:
                 return saved
@@ -88,30 +94,29 @@ class Agnes:
         temperature: float = 0.2,
         max_tokens: int = 1200,
     ) -> str:
-        payload = {
-            "model": TEXT_MODEL,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        digest = _hash(payload)
+        # The historical facade also owns media, but every text call uses only Qwen.
+        if not self.text_ready:
+            raise AgnesNotConfigured("Groq Qwen is off or GROQ_API_KEY is not set")
+        payload = {"model": TEXT_MODEL, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+        digest = _hash({"provider": "groq", "kind": cache_kind, **payload})
         cached = self.db.cache_get(digest)
         if cached is not None:
             return cached
-        body = await self._post(
-            f"{self.settings.agnes_base_url}/chat/completions",
-            payload,
-            "text",
-            90,
-        )
+        await self.buckets.text.acquire()
         try:
-            content = body["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise AgnesError("Agnes chat response had no message content") from exc
-        if not isinstance(content, str):
-            content = json.dumps(content, ensure_ascii=False)
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.post("https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY'].strip()}"}, json=payload)
+            if response.status_code >= 400:
+                raise AgnesError(f"Groq Qwen said {response.status_code}")
+            content = response.json()["choices"][0]["message"]["content"]
+        except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
+            raise AgnesError("Groq Qwen did not return a usable text response") from exc
+        if not isinstance(content, str) or not content.strip():
+            raise AgnesError("Groq Qwen returned empty text")
         self.db.cache_put(digest, cache_kind, content, _now())
         return content
+
 
     async def image(
         self,
@@ -174,3 +179,8 @@ class Agnes:
         if response.status_code >= 400:
             raise AgnesError(f"Agnes {response.status_code}: {response.text[:300]}")
         return response.json()
+
+
+def text_ready(app) -> bool:
+    """Configured text transport; injected test transports explicitly expose readiness."""
+    return bool(getattr(app.state.agnes, "text_ready", False))

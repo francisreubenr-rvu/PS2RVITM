@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Camera, Play, MessageCircle, ThumbsUp, Loader2, RefreshCw, Unlink, TriangleAlert, Check, Copy, Heart, MessageSquare } from 'lucide-react';
+import { Camera, Play, MessageCircle, ThumbsUp, RefreshCw, Unlink, TriangleAlert, Check, Copy, Heart, MessageSquare } from 'lucide-react';
 import { API_URL, api } from '../campaign/lib/api';
 import { navigate } from '../lib/router';
+import { OrbCursor, OrbLoader } from '../orb/orbPresence';
 
 // What each notice code from the login round trip means. The server sends the owner back to #/connections/<code>.
 const NOTICES = {
@@ -50,8 +51,8 @@ const CopyField = ({ label, value }) => {
 
 const Actions = ({ onRefresh, onDisconnect, busy }) => (
   <div className="flex flex-wrap gap-2">
-    <button type="button" disabled={busy} onClick={onRefresh} className="btn-ghost h-9 px-3 text-sm">{busy === 'refresh' ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Refresh</button>
-    <button type="button" disabled={busy} onClick={onDisconnect} className="btn-ghost h-9 px-3 text-sm"><Unlink size={14} /> Disconnect</button>
+    <button type="button" disabled={busy} onClick={onRefresh} className="btn-ghost h-9 px-3 text-sm">{busy === 'refresh' ? <OrbCursor active kind="searching" label="Refreshing" /> : <RefreshCw size={14} />} Refresh</button>
+    <button type="button" disabled={busy} onClick={onDisconnect} className="btn-ghost h-9 px-3 text-sm">{busy === 'disconnect' ? <OrbCursor active kind="thinking" label="Disconnecting" /> : <Unlink size={14} />} Disconnect</button>
   </div>
 );
 
@@ -77,16 +78,30 @@ const useAction = (provider, reload) => {
   };
 };
 
+// Shown instead of a Connect button when the server has no credentials for the service: what is missing and who does what.
+const NeedsSetup = ({ missing, steps, redirect }) => (
+  <div className="flex flex-col gap-2 text-sm">
+    <p className="font-medium">Cannot be connected yet. This server is missing {missing.map((n, i) => <span key={n}>{i > 0 && ' and '}<code>{n}</code></span>)}.</p>
+    <ol className="list-decimal space-y-1 pl-5 text-ink/70">{steps.map((s) => <li key={s}>{s}</li>)}</ol>
+    {redirect && <CopyField label="Redirect URI" value={redirect} />}
+  </div>
+);
+
 const Instagram = ({ c, setup, reload }) => {
   const act = useAction('instagram', reload);
   const p = c.profile;
   return (
-    <Shell icon={Camera} title="Instagram" status={c.connected ? (c.expired ? 'Login expired' : 'Connected') : 'Not connected'} tone={c.connected ? (c.expired ? 'warn' : 'good') : 'neutral'}>
+    <Shell icon={Camera} title="Instagram" status={c.connected ? (c.expired ? 'Login expired' : 'Connected') : c.configured ? 'Not connected' : 'Needs server setup'} tone={c.connected ? (c.expired ? 'warn' : 'good') : c.configured ? 'neutral' : 'warn'}>
       {!c.configured && (
-        <div className="flex flex-col gap-2 text-sm">
-          <p>Instagram is not set up on this server yet. Create a Meta app with the Instagram product, add your Instagram Business or Creator account as a tester, and put the app's ID and secret in the server's <code>.env</code> as <code>INSTAGRAM_APP_ID</code> and <code>INSTAGRAM_APP_SECRET</code>.</p>
-          <CopyField label="Redirect URI" value={setup.redirect_uri} />
-        </div>
+        <NeedsSetup
+          missing={c.missing?.length ? c.missing : ['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET']}
+          steps={[
+            'The team creates a Meta app with the Instagram product and adds the owner\'s Instagram Business or Creator account as a tester.',
+            'Add the redirect URI below to that app. Instagram wants an https address, so use a tunnel when running locally and set INSTAGRAM_REDIRECT_URI to it.',
+            'Put the app\'s ID and secret in the server\'s .env, then restart the server. The Connect button appears here.',
+          ]}
+          redirect={setup.redirect_uri}
+        />
       )}
       {c.configured && !c.connected && (
         <>
@@ -143,12 +158,22 @@ const Instagram = ({ c, setup, reload }) => {
   );
 };
 
-const YouTube = ({ c, reload }) => {
+const YouTube = ({ c, setup, reload }) => {
   const act = useAction('youtube', reload);
   const p = c.profile;
   return (
-    <Shell icon={Play} title="YouTube" status={c.connected ? 'Connected' : 'Not connected'} tone={c.connected ? 'good' : 'neutral'}>
-      {!c.configured && <p className="text-sm">Google is not set up on this server. YouTube uses the same Google client as sign-in.</p>}
+    <Shell icon={Play} title="YouTube" status={c.connected ? 'Connected' : c.configured ? 'Not connected' : 'Needs server setup'} tone={c.connected ? 'good' : c.configured ? 'neutral' : 'warn'}>
+      {!c.configured && (
+        <NeedsSetup
+          missing={c.missing?.length ? c.missing : ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']}
+          steps={[
+            'The team creates a Google Cloud OAuth client (Web application) and enables the YouTube Data API v3. The same client also serves Google sign-in.',
+            'Add the redirect URI below to that client. While the app is in testing, add the owner\'s Google account as a test user.',
+            'Put the client ID and secret in the server\'s .env, then restart the server. The Connect button appears here.',
+          ]}
+          redirect={setup.youtube_redirect_uri}
+        />
+      )}
       {c.configured && !c.connected && (
         <>
           <p className="text-sm text-ink/70">Post an approved reel to your channel as a YouTube Short. You will go to Google to allow uploading videos and reading your channel.</p>
@@ -181,7 +206,7 @@ const YouTube = ({ c, reload }) => {
 const WhatsApp = ({ c }) => (
   <Shell icon={MessageCircle} title="WhatsApp" status="Click to chat" tone="good">
     <p className="text-sm text-ink/70">{c.note}</p>
-    <p className="text-sm text-ink/70">Open an approved asset in <button type="button" onClick={() => navigate('campaign')} className="font-semibold text-accent-deep underline">Campaign 0</button> and choose <em>Send on WhatsApp</em>. Paste the numbers, and each chat opens in your own WhatsApp with the message ready.</p>
+    <p className="text-sm text-ink/70">Open an approved asset in <button type="button" onClick={() => navigate('campaign')} className="font-semibold text-accent-deep underline">Campaign</button> and choose <em>Send on WhatsApp</em>. Paste the numbers, and each chat opens in your own WhatsApp with the message ready.</p>
     {c.link_reachable === false && (
       <div role="alert" className="flex items-start gap-2 rounded-xl bg-warn/15 px-3 py-2 text-xs">
         <TriangleAlert size={14} className="mt-0.5 shrink-0" />
@@ -217,11 +242,11 @@ const Connections = ({ id: code }) => {
     <div className="flex flex-col gap-4">
       {notice && <p role="status" className={`rounded-2xl px-4 py-3 text-sm font-medium ${TONE[notice.tone]}`}>{notice.text}</p>}
       {error && <p role="alert" className="rounded-2xl bg-bad/15 px-4 py-3 text-sm">{error}</p>}
-      {!data && !error && <p className="text-sm text-white/60">Loading.</p>}
+      {!data && !error && <OrbLoader kind="searching" label="Checking your accounts" className="rounded-2xl bg-white" />}
       {data && (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 [&>*]:min-w-0">
           <Instagram c={by.instagram} setup={data.setup} reload={reload} />
-          <YouTube c={by.youtube} reload={reload} />
+          <YouTube c={by.youtube} setup={data.setup} reload={reload} />
           <WhatsApp c={by.whatsapp} />
           <FacebookCard />
         </div>

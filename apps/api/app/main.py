@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.agnes import text_ready
+
 import asyncio
 import os
 
@@ -7,6 +9,9 @@ from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import advisor, brain, business, chat, memory, notifications, tts, unsubscribe, agent, auth, scheduler, autopilot, changes, connections, customers, dashboard, evals, extras, forecast, launch, learn, panel, reply, scout, whatsapp, youtube, interview, media, outreach, persona, plan, voice
+from app import brandgen
+from app import site
+from app import videoprompt
 from app.agnes import Agnes
 from app.config import Settings, load_settings
 from app.db import Database
@@ -18,7 +23,7 @@ from app.worker import run_brief_job, start_jobs
 
 api = APIRouter()
 # Feature modules. Each owns its tables (ensure_schema) and its routes (router).
-MODULES = (interview, plan, changes, media, outreach, dashboard, persona, extras, forecast, agent, learn, reply, panel, autopilot, launch, scout, evals, auth, connections, whatsapp, youtube, customers, advisor, scheduler, business, unsubscribe, memory, tts, notifications, chat, voice, brain)
+MODULES = (interview, plan, changes, media, outreach, dashboard, persona, extras, forecast, agent, learn, reply, panel, autopilot, launch, scout, evals, auth, connections, whatsapp, youtube, customers, advisor, scheduler, business, unsubscribe, memory, tts, notifications, chat, voice, brandgen, brain, site, videoprompt)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -86,7 +91,7 @@ def health(request: Request) -> dict:
 async def voice(body: TranscriptIn, request: Request) -> dict:
     service = _service(request)
     campaign = _guard(lambda: service.create_campaign(body.transcript, body.brand_voice))
-    job = service.queue_brief(campaign["id"], has_key=bool(request.app.state.settings.agnes_api_key))
+    job = service.queue_brief(campaign["id"], has_key=text_ready(request.app))
     if job:
         _track(request, run_brief_job(request.app, job["id"]))
     return {"campaign": campaign, "brief_job_id": None if job is None else job["id"]}
@@ -115,7 +120,7 @@ def approve_facts(body: CampaignIdIn, request: Request) -> dict:
 @api.post("/campaign/generate")
 async def generate(body: CampaignIdIn, request: Request) -> dict:
     service = _service(request)
-    has_key = bool(request.app.state.settings.agnes_api_key)
+    has_key = text_ready(request.app)
     jobs = _guard(lambda: service.prepare_generation(body.campaign_id, has_key=has_key))
     start_jobs(request.app, jobs)
     return service.board(body.campaign_id)
@@ -128,7 +133,7 @@ async def change(body: ChangeIn, request: Request) -> dict:
         patch = None
     service = _service(request)
     _guard(lambda: service.apply_change(body.campaign_id, body.text, patch))
-    jobs = service.queue_changed(body.campaign_id, has_key=bool(request.app.state.settings.agnes_api_key))
+    jobs = service.queue_changed(body.campaign_id, has_key=text_ready(request.app))
     start_jobs(request.app, jobs)
     return service.board(body.campaign_id)
 
@@ -140,7 +145,7 @@ def board(campaign_id: str, request: Request) -> dict:
 
 @api.patch("/assets/{asset_id}")
 async def edit_asset(asset_id: str, body: ContentIn, request: Request) -> dict:
-    has_key = bool(request.app.state.settings.agnes_api_key)
+    has_key = text_ready(request.app)
     asset, jobs = _guard(lambda: _service(request).write_content(asset_id, body.content, has_key=has_key))
     start_jobs(request.app, jobs)
     return asset

@@ -1,5 +1,6 @@
+import { OrbCursor, OrbLoader } from '../orb/orbPresence';
 import { useCallback, useEffect, useState } from 'react';
-import { MessageCircleReply, ShieldAlert, Check, Copy, X, Loader2, UserRound } from 'lucide-react';
+import { MessageCircleReply, ShieldAlert, Check, Copy, X, UserRound } from 'lucide-react';
 import NoCampaign from '../campaign/NoCampaign';
 import { draftReply, listReplies, approveReply, dismissReply } from '../campaign/lib/api';
 import { LANGS } from '../campaign/lib/format';
@@ -40,6 +41,7 @@ const Card = ({ r, onChange }) => {
         <span className={`rounded-full px-2 py-0.5 font-semibold ${r.status === 'drafted' ? 'bg-info/12 text-info' : r.status === 'approved' ? 'bg-good/12 text-good' : r.status === 'escalated' ? 'bg-accent-soft text-accent-deep' : 'bg-ink/5'}`}>
           {r.status === 'escalated' ? 'For you to answer' : r.status === 'drafted' ? 'Draft ready' : r.status === 'approved' ? 'Approved, ready to copy' : 'Dismissed'}
         </span>
+        {r.demo && <span className="ml-auto rounded-full border border-ink/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink/55">Sample</span>}
       </div>
       <p className="mt-2 rounded-xl bg-ink/5 px-3 py-2 text-sm"><span className="text-ink/50">Customer: </span>{r.message}</p>
 
@@ -50,7 +52,7 @@ const Card = ({ r, onChange }) => {
           <p lang={r.lang} className="rounded-xl border border-ink/10 px-3 py-2 text-sm">{r.holding}</p>
           <div className="flex gap-2">
             <button type="button" className="btn-ghost h-9 px-3 text-sm" onClick={() => copy(r.holding)}><Copy size={14} /> Copy holding reply</button>
-            <button type="button" className="btn-ghost h-9 px-3 text-sm" disabled={busy} onClick={() => act(() => dismissReply(r.id))}><X size={14} /> Dismiss</button>
+            <button type="button" className="btn-ghost h-9 px-3 text-sm" disabled={busy} onClick={() => act(() => dismissReply(r.id))}><X size={14} /> Dismiss<OrbCursor active={busy} kind="writing" label="Working" /></button>
           </div>
         </div>
       )}
@@ -61,9 +63,9 @@ const Card = ({ r, onChange }) => {
           <p className="text-xs text-ink/55">Written only from {r.used.map((k) => FACT_LABEL[k] || k).join(', ')} in your locked facts. If you edit it, it is checked against the facts again.</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn-primary h-9 px-4 text-sm" disabled={busy || !text.trim()} onClick={() => act(() => approveReply(r.id, text))}>
-              {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
+              {busy ? <OrbCursor active kind="writing" label="Working" /> : <Check size={14} />} Approve
             </button>
-            <button type="button" className="btn-ghost h-9 px-3 text-sm" disabled={busy} onClick={() => act(() => dismissReply(r.id))}><X size={14} /> Dismiss</button>
+            <button type="button" className="btn-ghost h-9 px-3 text-sm" disabled={busy} onClick={() => act(() => dismissReply(r.id))}><X size={14} /> Dismiss<OrbCursor active={busy} kind="writing" label="Working" /></button>
           </div>
         </div>
       )}
@@ -81,8 +83,11 @@ const Card = ({ r, onChange }) => {
 };
 
 // S21: customer messages in, drafts out. It answers only from the locked facts and hands the rest to you.
-const Replies = () => {
-  const { id } = useCurrent();
+const Replies = ({ id }) => {
+  const cur = useCurrent();
+  // The route can name the campaign (#/replies/<id>); otherwise the one chosen on Home.
+  const cid = id || cur.id;
+  const sample = String(cid || '').startsWith('demo-');
   const [message, setMessage] = useState('');
   const [channel, setChannel] = useState('whatsapp');
   const [lang, setLang] = useState('en');
@@ -91,18 +96,18 @@ const Replies = () => {
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    if (id) listReplies(id).then((r) => setRows(r.replies)).catch((e) => setError(e.message));
-  }, [id]);
+    if (cid) listReplies(cid).then((r) => setRows(r.replies)).catch((e) => setError(e.message));
+  }, [cid]);
   useEffect(load, [load]);
 
-  if (!id) return <NoCampaign what="customer replies" />;
+  if (!cid) return <NoCampaign what="customer replies" />;
 
   const submit = async () => {
     setBusy(true);
     setError('');
     try {
-      const r = await draftReply(id, message.trim(), channel, lang);
-      setRows((cur) => [r, ...(cur || [])]);
+      const r = await draftReply(cid, message.trim(), channel, lang);
+      setRows((row) => [r, ...(row || [])]);
       setMessage('');
     } catch (e) {
       setError(e.message);
@@ -122,17 +127,18 @@ const Replies = () => {
           <span className="mx-1 text-ink/20">|</span>
           {LANGS.map((l) => <button key={l.code} type="button" aria-pressed={lang === l.code} onClick={() => setLang(l.code)} className={lang === l.code ? 'btn-dark h-8 px-3 text-xs' : 'btn-ghost h-8 px-3 text-xs'}>{l.native}</button>)}
           <button type="button" disabled={busy || message.trim().length < 2} onClick={submit} className="btn-primary ml-auto h-9 px-4 text-sm">
-            {busy ? <Loader2 size={14} className="animate-spin" /> : <UserRound size={14} />} Draft a reply
+            {busy ? <OrbCursor active kind="writing" label="Working" /> : <UserRound size={14} />} Draft a reply
           </button>
         </div>
         {error && <p role="alert" className="mt-2 text-sm text-bad">{error}</p>}
       </section>
 
-      {rows === null && !error && <p className="text-sm text-white/60">Loading.</p>}
+      {sample && <p className="rounded-2xl border border-white/20 bg-white/5 px-3 py-2 text-xs text-white/70">Sample data. These replies were seeded for a UI walkthrough, not real customer activity.</p>}
+      {rows === null && !error && <OrbLoader kind="loading" label="Loading replies" className="mx-auto w-fit rounded-2xl bg-white" />}
       {rows?.length === 0 && <p className="rounded-2xl border border-dashed border-white/20 p-5 text-sm text-white/70">No messages yet. Paste one above.</p>}
       <ul className="flex flex-col gap-3">
         {rows?.map((r) => (
-          <Card key={r.id} r={r} onChange={(next) => setRows((cur) => cur.map((x) => (x.id === next.id ? next : x)))} />
+          <Card key={r.id} r={sample ? { ...r, demo: true } : r} onChange={(next) => setRows((cur) => cur.map((x) => (x.id === next.id ? next : x)))} />
         ))}
       </ul>
     </div>

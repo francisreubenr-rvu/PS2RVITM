@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PanelRightClose, PanelRightOpen, ShieldX, Clock, Languages, X } from 'lucide-react';
+import { OrbLoader } from '../../orb/orbPresence';
 import { getBoard, getPlan, getScout } from '../../campaign/lib/api';
 import { Calendar, DateRail, useDayModel } from './CalendarParts';
 import { channelLabel, langName } from '../../campaign/lib/format';
@@ -161,6 +162,7 @@ const RightPanel = ({ drawerOpen = false, onCloseDrawer }) => {
   const [plan, setPlan] = useState(null);
   const [board, setBoard] = useState(null);
   const [events, setEvents] = useState([]);
+  const [fetching, setFetching] = useState(false);
   const [expanded, setExpanded] = useState(readExpanded);
   const [picked, setPicked] = useState(null); // the clicked date, shared by the calendar, the rail and the drawer
 
@@ -176,17 +178,22 @@ const RightPanel = ({ drawerOpen = false, onCloseDrawer }) => {
     setPlan(null);
     setBoard(null);
     setEvents([]);
+    setFetching(false);
     if (!id) return undefined;
     let live = true;
-    getPlan(id).then((p) => live && setPlan(p)).catch(() => undefined);
-    getBoard(id).then((b) => live && setBoard(b)).catch(() => undefined);
-    getScout(id).then((s) => live && setEvents(s.owner_events)).catch(() => undefined);
+    setFetching(true);
+    Promise.allSettled([
+      getPlan(id).then((p) => live && setPlan(p)),
+      getBoard(id).then((b) => live && setBoard(b)),
+      getScout(id).then((s) => live && setEvents(s.owner_events)),
+    ]).then(() => live && setFetching(false));
     return () => {
       live = false;
     };
   }, [id]);
 
   const model = useDayModel(plan, events);
+  const wait = fetching ? <OrbLoader kind="loading" size={20} label="Reading your campaign" className="w-fit flex-row rounded-full bg-white" style={{ padding: '0.25rem 0.75rem' }} /> : null;
 
   return (
     <>
@@ -223,7 +230,8 @@ const RightPanel = ({ drawerOpen = false, onCloseDrawer }) => {
                 style={{ width: INNER_WIDE }}
                 className="absolute inset-y-0 left-0 flex flex-col gap-4 overflow-y-auto px-1 pb-1"
               >
-                <Summary plan={plan} model={model} board={board} id={id} picked={picked} onPick={setPicked} />
+                {wait}
+            <Summary plan={plan} model={model} board={board} id={id} picked={picked} onPick={setPicked} />
               </motion.div>
             ) : (
               <motion.div
@@ -250,6 +258,7 @@ const RightPanel = ({ drawerOpen = false, onCloseDrawer }) => {
       <AnimatePresence>
         {drawerOpen && (
           <Drawer onClose={onCloseDrawer}>
+            {wait}
             <Summary plan={plan} model={model} board={board} id={id} picked={picked} onPick={setPicked} />
           </Drawer>
         )}

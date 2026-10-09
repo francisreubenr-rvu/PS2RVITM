@@ -73,7 +73,7 @@ const Studio = () => {
                     aria-pressed={on}
                     onClick={() => toggle(d.id)}
                     title={PIPELINES[d.pipeline].backend ? undefined : 'No backend yet'}
-                    className={`flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors ${PIPELINES[d.pipeline].backend ? '' : 'opacity-50'} ${on ? 'border-accent bg-accent-soft' : 'border-ink/10 hover:bg-ink/5'}`}
+                    className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors ${PIPELINES[d.pipeline].backend ? '' : 'opacity-50'} ${on ? 'border-accent bg-accent-soft' : 'border-ink/25 bg-white/85 text-ink hover:border-ink/45 hover:bg-white focus-visible:border-ink/60 focus-visible:bg-white'}`}
                   >
                     <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border ${on ? 'border-accent bg-accent text-on-accent' : 'border-ink/30'}`}>
                       {on && <Check size={13} />}

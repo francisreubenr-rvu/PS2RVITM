@@ -5,6 +5,7 @@ import type { Route } from "../lib/route";
 import { useSpeaker } from "../lib/speech";
 import type { Answer, Plan } from "../lib/types";
 import { Badge, Button, Empty, ErrorNote, Fold } from "./ui";
+import { OrbLoader } from "../../orb/orbPresence";
 
 const PURPOSE: Record<string, string> = { teaser: "Teaser", launch: "Launch", reminder: "Reminder", last_day: "Last day" };
 
@@ -86,7 +87,7 @@ export function PlanView({ id, go, onBusiness }: { id: string; go: (r: Route) =>
     return [...map.entries()];
   }, [plan]);
 
-  if (!plan) return <div className="page">{fatal ? <ErrorNote onRetry={load}>{error}</ErrorNote> : <p className="muted">Loading the plan.</p>}</div>;
+  if (!plan) return <div className="page">{fatal ? <ErrorNote onRetry={load}>{error}</ErrorNote> : <OrbLoader kind="loading" label="Loading the plan" className="mx-auto w-fit rounded-2xl bg-white" />}</div>;
 
   const src = (...keys: string[]) => {
     for (const k of keys) {
@@ -108,13 +109,13 @@ export function PlanView({ id, go, onBusiness }: { id: string; go: (r: Route) =>
   const dayRows = plan.schedule.length;
 
   async function lock() {
-    setBusy(locked ? "Writing Campaign 0" : "Locking the plan");
+    setBusy(locked ? "Writing Campaign" : "Locking the plan");
     setError("");
     try {
       if (!locked) {
         const p = await approvePlan(id);
         setPlan(p);
-        setBusy("Writing Campaign 0");
+        setBusy("Writing Campaign");
       }
       await generate(id);
       go({ name: "campaign", id });
@@ -198,10 +199,10 @@ export function PlanView({ id, go, onBusiness }: { id: string; go: (r: Route) =>
         {error ? <ErrorNote>{error}</ErrorNote> : null}
         {locked ? (
           <div className="lock-actions">
-            <Button variant="primary" block onClick={() => go({ name: "campaign", id })} disabled={Boolean(busy)}>Open Campaign 0</Button>
+            <Button variant="primary" block onClick={() => go({ name: "campaign", id })} disabled={Boolean(busy)}>Open Campaign</Button>
           </div>
         ) : (
-          <Button variant="primary" block onClick={lock} disabled={Boolean(busy)}>{busy || "Lock plan and write Campaign 0"}</Button>
+          <Button variant="primary" block onClick={lock} disabled={Boolean(busy)}>{busy || "Lock plan and write Campaign"}</Button>
         )}
       </aside>
     </div>

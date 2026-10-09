@@ -104,6 +104,8 @@ def test_login_asks_for_upload_scope_offline_with_pkce(tmp_path, monkeypatch):
 def test_login_needs_google_configured(tmp_path, monkeypatch):
     c = make(tmp_path, monkeypatch, google=False)
     assert c.get("/auth/youtube/login").status_code == 501
+    row = {r["provider"]: r for r in c.get("/connections").json()["connections"]}["youtube"]
+    assert row["configured"] is False and row["missing"] == ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
 
 
 def test_connect_stores_encrypted_tokens_and_reads_the_channel(tmp_path, monkeypatch):

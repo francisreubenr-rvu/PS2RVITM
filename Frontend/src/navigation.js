@@ -31,6 +31,8 @@ import {
 
 // Screens from docs/screen-flow.md. `slug` is the URL hash (#/board).
 export const pages = {
+  // S0b: the post-login chooser. Reachable at #/start; not in the rail, it is the landing right after sign-in.
+  start: { slug: 'start', screen: 'S0b', label: 'Get started', icon: Compass, description: 'Choose where to begin.' },
   home: { slug: 'home', screen: 'S2', label: 'Home', icon: House, description: 'Your campaigns and what needs you next.' },
   insights: { slug: 'insights', screen: 'S22', label: 'Insights', icon: ChartSpline, description: 'How the campaigns turned out: reach, posts, redemptions and the workflow. Sample data for now.' },
   memory: { slug: 'memory', screen: 'S24', label: 'Memory', icon: Brain, description: 'How we remember you. What GrowIt knows about your business, in your words: your menu, pricing or timings. Edit anything, any time. Campaign prices and dates always come from the approved offer, never from here.' },
@@ -39,7 +41,7 @@ export const pages = {
   agent: { slug: 'agent', screen: 'S20', label: 'Agent', icon: Bot, description: 'Describe your idea once. The agent plans the work, does what it can and stops at the steps that need you.' },
   voice: { slug: 'voice', screen: 'S3', label: 'Talk', icon: Mic, description: 'Answer a few questions by voice or tap. Every answer is kept with your own words.' },
   plan: { slug: 'plan', screen: 'S4', label: 'Plan', icon: ShieldCheck, description: 'What you said, as a plan. Each line shows its source and the schedule is worked out by rule.' },
-  campaign: { slug: 'campaign', screen: 'S7', label: 'Campaign 0', icon: LayoutGrid, description: 'Every asset shown as the surface it will appear on, with its fact and meaning checks.' },
+  campaign: { slug: 'campaign', screen: 'S7', label: 'Campaign', icon: LayoutGrid, description: 'All your campaigns. Open one to see every asset as the surface it will appear on, with its fact and meaning checks.' },
   dashboard: { slug: 'dashboard', screen: 'S9', label: 'Dashboard', icon: ChartNoAxesColumn, description: 'Sends, clicks and checks. Every number comes from this app.' },
   planner: { slug: 'planner', screen: 'S5', label: 'Budget Planner', icon: Scale, description: 'Pick what you want. See what fits your time, money and review effort.' },
   log: { slug: 'log', screen: 'S11', label: 'Change Log', icon: History, description: 'What changed, who changed it, why, and what is still pending.' },
@@ -60,7 +62,7 @@ export const pages = {
 export const homeItem = pages.home;
 export const sidebarGroups = [
   { id: 'start', title: 'Start', icon: Compass, defaultOpen: true, items: [pages.agent, pages.voice, pages.launch] },
-  { id: 'campaign', title: 'Campaign', icon: Megaphone, defaultOpen: true, items: [pages.plan, pages.campaign, pages.dashboard, pages.insights] },
+  { id: 'campaign', title: 'Campaign', icon: Megaphone, defaultOpen: true, items: [pages.campaign, pages.plan, pages.dashboard, pages.insights] },
   { id: 'tools', title: 'Tools', icon: Wrench, defaultOpen: false, items: [pages.planner, pages.replies, pages.log] },
   { id: 'brand', title: 'Brand and site', icon: Palette, defaultOpen: false, items: [pages.studio, pages.brand, pages.identity, pages.website, pages.video] },
 ];
@@ -78,7 +80,7 @@ export const logoutItem = { slug: 'logout', label: 'Log out', icon: LogOut };
 export const flowSteps = [
   { slug: 'voice', label: 'Talk', icon: Mic },
   { slug: 'plan', label: 'Plan', icon: ShieldCheck },
-  { slug: 'campaign', label: 'Campaign 0', icon: LayoutGrid },
+  { slug: 'campaign', label: 'Campaign', icon: LayoutGrid },
   { slug: 'dashboard', label: 'Dashboard', icon: ChartNoAxesColumn },
 ];
 

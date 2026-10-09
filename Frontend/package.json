@@ -11,15 +11,20 @@
   },
   "dependencies": {
     "@elevenlabs/client": "^1.27.0",
+    "@elevenlabs/react": "^1.17.0",
+    "clsx": "^2.1.1",
     "framer-motion": "^14.0.0",
     "lucide-react": "^1.53.0",
+    "ogl": "^1.0.11",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "tailwind-merge": "^3.7.0",
     "three": "^0.186.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.2",
+    "playwright": "^1.64.0",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.4"
   }

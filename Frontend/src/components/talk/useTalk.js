@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, answerQuestion, applyChange, finishInterview, getBoard, getSession, proposeChange, startInterview, editAnswer } from '../../campaign/lib/api';
+import { answerQuestion, applyChange, finishInterview, getBoard, getSession, proposeChange, startInterview, editAnswer } from '../../campaign/lib/api';
 import { channelLabel, langName, prettyText } from '../../campaign/lib/format';
 import { go, useCurrent } from '../../campaign/lib/current';
-import { useVoiceInput } from '../../campaign/lib/voice';
 import { navigate } from '../../lib/router';
 import { looksLikeQuestion, understand } from './intent';
 import { getStrings } from './strings';
 import { useTalkVoice } from './voiceIO';
 
-// One conversation for everything spoken in the app: starting a campaign, changing one, opening a screen. GrowIt says every line out
-// loud (when the voice is on) and, in hands-free mode, starts listening again as soon as it has finished, so it works like a
-// phone call. Tapping the orb while it speaks interrupts it. Nothing is changed without a spoken or tapped yes.
+// One conversation for everything spoken in the app: starting a campaign, changing one, opening a screen. One live call with the
+// ElevenLabs agent (Agnez) carries the voice: she asks every line and hears every answer, the microphone stays open, and the
+// person can interrupt her at any point. GrowIt is the source of truth: it hands Agnez each line, records what the person says
+// into the interview, and nothing is changed without a spoken or tapped yes. A typed fallback always works.
 
 const INTENT_KEY = 'talk-intent'; // set by buttons elsewhere ("Tell me what to change") before they open Talk
 const LOCALISED = ['en', 'hi', 'kn']; // the interview asks in these; other languages are asked in English
@@ -26,10 +26,11 @@ const hasDetail = (text) => /\d/.test(text) || text.trim().split(/\s+/).length >
 export function useTalk({ sessionId, user }) {
   const cur = useCurrent();
   const [lang, setLangState] = useState(readLang);
-  const [handsFree, setHandsFreeState] = useState(() => readBool('talk-handsfree', true));
+  const [handsFree, setHandsFreeState] = useState(true); // Talk is always hands-free: the call stays open and the microphone stays live
   const [voiceOn, setVoiceOnState] = useState(() => readBool('talk-voice', true));
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [ended, setEnded] = useState(false); // the person ended the call: lines stay on screen but are not spoken until they reconnect
   const [messages, setMessages] = useState([]);
   const [session, setSession] = useState(null);
   const [proposal, setProposal] = useState(null);
@@ -38,35 +39,38 @@ export function useTalk({ sessionId, user }) {
   const [busy, setBusy] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [lastHeard, setLastHeard] = useState('');
-  const voice = useTalkVoice();
 
   // The conversation outlives renders, so everything async reads the latest values from here.
   const live = useRef({});
-  live.current = { lang, handsFree, voiceOn, mode, session, proposal, cur, started };
-  const silent = useRef(0);
+  live.current = { lang, handsFree, voiceOn, mode, session, proposal, cur, started, ended };
   const asked = useRef('');
   const owned = useRef(''); // the session this conversation started itself, so the address change does not re-open it
-  const micRef = useRef(null);
+  const onHeardRef = useRef(null); // the current onHeard, so the voice call always calls the latest
+  const replyRef = useRef(null); // set while a free-form question is waiting for Agnez's spoken answer, so it is shown too
+  const agnez = useTalkVoice({
+    onFinal: (text) => onHeardRef.current?.(text, 'voice'),
+    onAgent: (text) => { const show = replyRef.current; if (show) { replyRef.current = null; show(text); } },
+  });
 
   const push = useCallback((m) => setMessages((all) => [...all, m]), []);
   const effLang = () => (live.current.session?.lang || live.current.lang);
 
-  const listenSoon = useCallback(() => {
-    const { handsFree: hf } = live.current;
-    const mic = micRef.current;
-    if (hf && mic?.supported && !mic.listening) setTimeout(() => { if (!micRef.current?.listening) micRef.current?.start(); }, 250);
-  }, []);
+  // Make sure the voice call is open before a line is handed to Agnez. Safe to call repeatedly.
+  const ensureLive = useCallback(async () => {
+    if (agnez.status === 'live') return true;
+    if (agnez.status === 'connecting') return true;
+    return agnez.start(live.current.lang);
+  }, [agnez]);
 
-  // Say a line: show it, speak it, then (hands-free) listen. `spoken` is the language the line is in.
-  const say = useCallback(async (text, { spoken, listen = true, extra } = {}) => {
+  // Say a line: show it, hand it to Agnez to speak. The microphone is already open, so there is nothing to start listening for:
+  // the person can answer, or interrupt Agnez, the moment she begins.
+  const say = useCallback(async (text, { extra } = {}) => {
     push(msg('ai', text, extra));
-    if (live.current.voiceOn) {
-      const ok = await voice.speak(text, spoken || effLang());
-      if (ok === false) return false; // cut off: the person took over, so do not start listening for them
-    }
-    if (listen) listenSoon();
+    if (!live.current.voiceOn || live.current.ended) return true;
+    await ensureLive();
+    await agnez.say(text);
     return true;
-  }, [push, voice, listenSoon]);
+  }, [push, agnez, ensureLive]);
 
   const strings = () => getStrings(live.current.lang);
   const sayT = useCallback((key, ...args) => {
@@ -188,28 +192,14 @@ export function useTalk({ sessionId, user }) {
     }
   }, [say, sayT, loadAssets]);
 
-  // The chat brain: anything that is not a plain command gets a short answer from Groq, Gemini or Agnes (the server picks the fastest that is on).
+  // Anything that is not a plain command: Agnez answers it, in the one voice on this screen. Her spoken reply is written here
+  // too, so nothing is only heard. No second chat model is used.
   const chatRef = useRef(null);
-  const chatReply = useCallback(async (text) => {
-    const { lang: l, mode: m, session: s, cur: c } = live.current;
-    const past = (live.current.history || []).filter((x) => x.role === 'ai' || x.role === 'user').slice(-9).map((x) => ({ role: x.role === 'ai' ? 'assistant' : 'user', content: x.text.slice(0, 600) }));
-    if (past.length && past[past.length - 1].role === 'user' && past[past.length - 1].content === text.slice(0, 600)) past.pop();
-    setThinking(true);
-    try {
-      const out = await api('/talk/chat', { method: 'POST', body: JSON.stringify({ messages: [...past, { role: 'user', content: text.slice(0, 600) }], lang: l, campaign_id: c?.id || null, question: s?.question?.prompt || null, mode: m }) });
-      const act = out.action;
-      if (act?.type === 'new_campaign') { setThinking(false); return startNew(); }
-      if (act?.type === 'change') { setThinking(false); return proposeFor(act.text, { chatFallback: false }); }
-      setThinking(false);
-      const meta = { provider: out.provider, ms: out.latency_ms };
-      if (act?.type === 'navigate') { push(msg('ai', out.reply, meta)); navigate(act.slug); return; }
-      await say(out.reply, { spoken: l, extra: meta });
-    } catch (e) {
-      setThinking(false);
-      const { t, lang: tl } = getStrings(l);
-      await say(e.code === 'chat_unavailable' ? t.unknown : t.error(e.message), { spoken: tl });
-    }
-  }, [say, push, startNew, proposeFor]);
+  const chatReply = useCallback(async () => {
+    const ok = await ensureLive();
+    if (!ok || agnez.status === 'error') { const { t } = getStrings(live.current.lang); return say(t.unknown, { extra: { kind: 'unknown' } }); }
+    replyRef.current = (reply) => push(msg('ai', reply, { provider: 'agnez' }));
+  }, [ensureLive, agnez.status, say, push]);
   chatRef.current = chatReply;
 
   const applyNow = useCallback(async () => {
@@ -240,12 +230,10 @@ export function useTalk({ sessionId, user }) {
 
   // ---------------- what was heard (voice or typed)
   const onHeard = useCallback(async (text, source = 'voice') => {
-    silent.current = 0;
     setPaused(false);
     setLastHeard(text);
     const { mode: m, session: s } = live.current;
     push(msg('user', text, { source }));
-    voice.stop();
 
     if (m === 'change') {
       const word = understand(text, 'confirm').intent;
@@ -283,37 +271,43 @@ export function useTalk({ sessionId, user }) {
         if (m === 'confirm') return sayT('confirmHint');
         return chatReply(text); // not a command: let the chat brain answer it
     }
-  }, [push, voice, say, sayT, startNew, proposeFor, applyNow, discard, beginChange, buildPlan, sendAnswer, chatReply]);
+  }, [push, agnez, say, sayT, startNew, proposeFor, applyNow, discard, beginChange, buildPlan, sendAnswer, chatReply]);
 
   // kept for "repeat that"
   live.current.history = messages;
+  onHeardRef.current = onHeard;
 
-  const mic = useVoiceInput(lang, (text) => onHeard(text, 'voice'));
-  micRef.current = mic;
+  // The visible microphone, made honest: the call's own live/listening/speaking state, nothing invented.
+  const liveNow = agnez.status === 'live';
+  const mic = {
+    supported: agnez.availability ? agnez.availability.available === true : true,
+    listening: liveNow && agnez.mode === 'listening',
+    speaking: liveNow && agnez.mode === 'speaking',
+    transcribing: agnez.status === 'connecting',
+    error: agnez.error,
+    note: '',
+    engine: 'agnez',
+    start: () => agnez.start(live.current.lang),
+    stop: () => agnez.interrupt(),
+  };
+  const voice = { speaking: liveNow && agnez.mode === 'speaking', preparing: agnez.status === 'connecting', engine: 'agnez', stop: () => agnez.interrupt() };
 
-  // Hands-free: if nothing was heard, try once more, then wait quietly instead of looping.
+  // Hands-free: the call stays open, so there is no per-question tap. If it drops or the microphone is blocked, say so
+  // plainly and leave the typed fallback; do not loop silently.
   useEffect(() => {
-    if (!mic.error || !live.current.handsFree || !live.current.started) return;
-    if (/blocked|No microphone|Could not start/i.test(mic.error)) { setPaused(true); return; }
-    silent.current += 1;
-    if (silent.current >= 2) {
-      silent.current = 0;
-      setPaused(true);
-      push(msg('system', getStrings(live.current.lang).t.noSpeech));
-    } else {
-      const t = setTimeout(() => micRef.current?.start(), 700);
-      return () => clearTimeout(t);
-    }
-  }, [mic.error, push]);
+    if (!agnez.error || !live.current.started) return;
+    if (/blocked|No microphone|Could not open/i.test(agnez.error)) setPaused(true);
+  }, [agnez.error]);
 
   // ---------------- starting and stopping
   const begin = useCallback(async () => {
     setStarted(true);
     live.current.started = true;
-    const { t, lang: l } = getStrings(live.current.lang);
+    await ensureLive(); // open the one voice call; if the browser blocks the microphone, say() still shows the line on screen
+    const { t } = getStrings(live.current.lang);
     const first = user?.name?.split(' ')[0];
-    await say(t.greet(first), { spoken: l });
-  }, [say, user]);
+    await say(t.greet(first));
+  }, [say, ensureLive, user]);
 
   // Arriving with a session in the address (from Home, or a refresh): pick the conversation up where it was.
   useEffect(() => {
@@ -331,40 +325,53 @@ export function useTalk({ sessionId, user }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // Arriving from a button that already knows what it wants.
+  // Arriving from a button that already knows what it wants, or simply arriving with hands-free on: start without a tap. The
+  // first visit still needs one tap for the browser's microphone permission; after that, coming to Talk is enough.
+  const autoStarted = useRef(false);
   useEffect(() => {
-    if (sessionId) return;
+    if (sessionId || autoStarted.current) return;
+    autoStarted.current = true;
     let want = null;
     try { want = sessionStorage.getItem(INTENT_KEY); sessionStorage.removeItem(INTENT_KEY); } catch { /* storage blocked */ }
-    if (!want) return;
-    setStarted(true);
-    live.current.started = true;
-    if (want === 'change') beginChange();
-    else begin();
+    if (want) {
+      setStarted(true);
+      live.current.started = true;
+      if (want === 'change') beginChange();
+      else begin();
+    } else if (live.current.handsFree) {
+      begin();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => () => { voice.stop(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Teardown of the voice call is owned by useAgnez (StrictMode-safe), so there is nothing to end here.
 
-  const orb = useCallback(() => {
-    if (!live.current.started) { begin(); return; }
-    if (voice.speaking) { voice.stop(); mic.start(); return; }
-    if (mic.listening) { mic.stop(); return; }
-    silent.current = 0;
+  const orb = useCallback(async () => {
+    if (!live.current.started) { setEnded(false); live.current.ended = false; await begin(); return; }
+    if (live.current.ended || agnez.status === 'error' || agnez.status === 'idle') { setEnded(false); live.current.ended = false; await agnez.start(live.current.lang); return; } // the call was ended or dropped: reopen it
+    if (agnez.mode === 'speaking') { agnez.interrupt(); return; } // take the floor from Agnez
     setPaused(false);
-    mic.start();
-  }, [begin, voice, mic]);
+    agnez.interrupt(); // best effort: make sure the floor is the person's
+  }, [begin, agnez]);
+
+  // Hang up: close the call and drop every line still waiting to be spoken. Nothing reopens it until the person taps reconnect.
+  const endCall = useCallback(async () => {
+    setEnded(true);
+    live.current.ended = true;
+    replyRef.current = null;
+    await agnez.end();
+  }, [agnez]);
 
   const setLang = (l) => { setLangState(l); try { localStorage.setItem('talk-lang', l); } catch { /* ignore */ } };
-  const setHandsFree = (v) => { setHandsFreeState(v); writeBool('talk-handsfree', v); if (!v) setPaused(false); };
-  const setVoiceOn = (v) => { setVoiceOnState(v); writeBool('talk-voice', v); if (!v) voice.stop(); };
+  const setHandsFree = (v) => setHandsFreeState(v);
+  const setVoiceOn = (v) => { setVoiceOnState(v); writeBool('talk-voice', v); agnez.setVolume(v ? 1 : 0); };
 
   const phase = voice.speaking || voice.preparing ? 'speaking' : mic.listening ? 'listening' : mic.transcribing || busy || thinking ? 'thinking' : 'idle';
 
   return {
-    lang, setLang, handsFree, setHandsFree, voiceOn, setVoiceOn, started, paused, messages, session, proposal, assets, mode, busy, phase, lastHeard,
-    mic, voice, orb, onHeard, sendAnswer, editHeard, buildPlan, applyNow, discard, beginChange, startNew,
-    replay: (text) => say(text, { spoken: effLang(), listen: false }),
+    lang, setLang, handsFree, setHandsFree, voiceOn, setVoiceOn, started, paused, ended, endCall, messages, session, proposal, assets, mode, busy, phase, lastHeard,
+    mic, voice, agnez, orb, onHeard, sendAnswer, editHeard, buildPlan, applyNow, discard, beginChange, startNew,
+    replay: (text) => say(text, { extra: { kind: 'replay' } }),
     strings, hasCampaign: Boolean(cur.id),
   };
 }

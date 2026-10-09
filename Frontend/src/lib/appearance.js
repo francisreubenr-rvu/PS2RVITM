@@ -1,43 +1,42 @@
 import { useState } from 'react';
 
-// How the app looks on this device: accent colour, surface style, background and whether it reacts to the cursor.
+// How the app looks on this device: accent colour, surface style and background.
 // Kept in localStorage, because it is a per-device preference and not campaign data.
 const KEY = 'appearance';
 
+// Two calm accents only: one warm (Marigold, the default) and one low-saturation sage (Zen). Colour stays scarce.
 export const ACCENTS = [
   { id: 'marigold', label: 'Marigold', hex: '#f0b429' },
-  { id: 'ember', label: 'Ember', hex: '#f26b1d' },
-  { id: 'rose', label: 'Rose', hex: '#e0457b' },
-  { id: 'violet', label: 'Violet', hex: '#8b5cf6' },
-  { id: 'ocean', label: 'Ocean', hex: '#3d7be0' },
-  { id: 'teal', label: 'Teal', hex: '#14a89a' },
-  { id: 'leaf', label: 'Leaf', hex: '#4caf50' },
+  { id: 'zen', label: 'Zen', hex: '#7f8c72' },
 ];
 
 export const SURFACES = [
   { id: 'glass', label: 'Glass', hint: 'Frosted panels and cards. You see the background through them, and text stays easy to read.' },
-  { id: 'clear', label: 'Clear glass', hint: 'More see-through and more blur.' },
-  { id: 'solid', label: 'Solid', hint: 'No see-through. Best on slow machines.' },
 ];
 
 export const BACKDROPS = [
-  { id: 'animated', label: 'Moving gradient', hint: 'The colour blobs drift slowly.' },
-  { id: 'still', label: 'Still gradient', hint: 'Same colours, no movement.' },
+  { id: 'trail', label: 'Pixel trail', hint: 'A toned photograph that your cursor reveals in small squares, which fade out behind it.' },
+  { id: 'still', label: 'Still gradient', hint: 'A warm gradient with soft blobs behind the glass, held still.' },
   { id: 'plain', label: 'Plain', hint: 'One soft gradient, no blobs.' },
 ];
 
-export const DEFAULTS = { accent: '#f0b429', surface: 'glass', backdrop: 'animated', reactive: true };
+export const DEFAULTS = { accent: '#f0b429', surface: 'glass', backdrop: 'trail' };
 
 const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+
+// Hexes of the accents that were removed. A saved choice for one of them falls back to the default instead of leaving a
+// stale swatch; a custom colour picked by hand still survives.
+const REMOVED_ACCENTS = ['#f26b1d', '#e0457b', '#8b5cf6', '#3d7be0', '#14a89a', '#4caf50'];
 
 export const readAppearance = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    // A value saved for a removed preset (accent, surface, backdrop) or a non-hex accent falls back to the default, so
+    // an old stored choice never renders broken.
     return {
-      accent: isHex(saved.accent) ? saved.accent : DEFAULTS.accent,
+      accent: isHex(saved.accent) && !REMOVED_ACCENTS.includes(saved.accent.toLowerCase()) ? saved.accent : DEFAULTS.accent,
       surface: SURFACES.some((s) => s.id === saved.surface) ? saved.surface : DEFAULTS.surface,
       backdrop: BACKDROPS.some((b) => b.id === saved.backdrop) ? saved.backdrop : DEFAULTS.backdrop,
-      reactive: typeof saved.reactive === 'boolean' ? saved.reactive : DEFAULTS.reactive,
     };
   } catch {
     return { ...DEFAULTS };
@@ -63,13 +62,12 @@ export const onAccent = (hex) => {
 };
 
 // Hover, deep and soft accent shades are derived in index.css from --color-accent, so only two values are set here.
-export const applyAppearance = ({ accent, surface, backdrop, reactive }) => {
+export const applyAppearance = ({ accent, surface, backdrop }) => {
   const root = document.documentElement;
   root.style.setProperty('--color-accent', accent);
   root.style.setProperty('--color-on-accent', onAccent(accent));
   root.dataset.surface = surface;
   root.dataset.backdrop = backdrop;
-  root.dataset.reactive = reactive ? 'on' : 'off';
 };
 
 export const useAppearance = () => {

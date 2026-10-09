@@ -88,7 +88,8 @@ def test_login_needs_the_meta_app_keys(tmp_path, monkeypatch):
     c = make(tmp_path, monkeypatch, configured=False)
     r = c.get("/auth/instagram/login")
     assert r.status_code == 501 and r.json()["detail"]["code"] == "instagram_not_configured"
-    assert c.get("/connections").json()["connections"][0] == {"provider": "instagram", "label": "Instagram", "configured": False, "connected": False}
+    assert c.get("/connections").json()["connections"][0] == {"provider": "instagram", "label": "Instagram", "configured": False, "connected": False,
+                                                                     "missing": ["INSTAGRAM_APP_ID", "INSTAGRAM_APP_SECRET"]}
 
 
 def test_login_redirects_to_instagram_with_the_smallest_scope_and_a_signed_state(tmp_path, monkeypatch):

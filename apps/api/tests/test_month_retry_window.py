@@ -58,6 +58,8 @@ class RawAgnes:
         self.replies = list(replies)
         self.calls = []
 
+    text_ready = True
+
     async def chat(self, messages, *, cache_kind, temperature=0.2, max_tokens=1200):
         self.calls.append({"kind": cache_kind, "messages": messages, "max_tokens": max_tokens})
         return self.replies.pop(0)

@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
-from app.config import ROOT
+from app.config import ROOT, TEXT_MODEL
 from app import languages
 from app.lab.voice import elevenlabs
 from app.db import Database
@@ -42,7 +42,7 @@ CALIBRATION_DIR = ROOT / "data" / "calibration"
 
 # Extra services the owner can switch on or off. The key lives in the server's .env; the switch is the owner's consent.
 TOGGLES = {
-    "groq": {"label": "Groq", "env": "GROQ_API_KEY", "used_for": "Fast chat replies on the Talk page (Llama) and speech to text for languages the offline model lacks. Your messages and audio are sent to Groq."},
+    "groq": {"label": "Groq", "env": "GROQ_API_KEY", "used_for": "Qwen is the only in-app text model: planning, campaign writing, review and Talk. Text is sent to Groq."},
     "gemini": {"label": "Gemini", "env": "GEMINI_API_KEY", "used_for": "The backup for chat replies, and a voice for reading aloud when ElevenLabs is off. Text is sent to Google."},
     "elevenlabs": {"label": "ElevenLabs", "env": "AGNEZ_ELEVENLABS_API_KEY", "alt": ["ELEVENLABS_API_KEY"],
                    "used_for": "GrowIt's voice: reads its replies aloud and turns your speech into text, in every language. Text and audio are sent to ElevenLabs."},
@@ -152,6 +152,12 @@ def list_providers(request: Request) -> dict:
     default_key = bool(request.app.state.settings.agnes_api_key)
     out = []
     for cap in CAPABILITIES:
+        if cap == "text":
+            state = toggle_state(db, "groq")
+            out.append({"capability":"text","provider":"groq","model":TEXT_MODEL,"key_set":False,
+                        "last4":None,"base_url":None,"updated_at":None,"default":True,
+                        "configured":state["configured"],"active":state["active"]})
+            continue
         out.append(saved.get(cap) or {"capability": cap, "provider": "agnes" if cap in ("text", "image", "video") else "browser",
                                       "base_url": None, "model": None, "key_set": False, "last4": None,
                                       "updated_at": None, "default": True})
@@ -163,6 +169,8 @@ def list_providers(request: Request) -> dict:
 def save_provider(capability: str, body: ProviderIn, request: Request) -> dict:
     if capability not in CAPABILITIES:
         raise _fail("bad_capability", f"capability must be one of {', '.join(CAPABILITIES)}", 422)
+    if capability == "text":
+        raise _fail("fixed_text_provider", "Text reasoning uses only server-configured Groq Qwen.", 409)
     if body.base_url:
         try:
             check_custom_base_url(body.base_url)

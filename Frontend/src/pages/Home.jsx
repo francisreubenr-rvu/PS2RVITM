@@ -6,6 +6,7 @@ import { listOverview, startInterview, getDashboard } from '../campaign/lib/api'
 import { MAIN_LANGS, MORE_LANGS, humanize } from '../campaign/lib/format';
 import { go, setCurrent, useCurrent } from '../campaign/lib/current';
 import { navigate } from '../lib/router';
+import { OrbCursor, OrbLoader } from '../orb/orbPresence';
 
 const nameOf = (b) => (!b ? '' : typeof b === 'string' ? b : b.name || '');
 const nextStage = (status) => (status === 'draft' || status === 'planned' ? 'plan' : 'campaign');
@@ -17,6 +18,7 @@ const Home = () => {
   const [totals, setTotals] = useState(null);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(null);
+  const [totalsBusy, setTotalsBusy] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -44,9 +46,11 @@ const Home = () => {
   useEffect(() => {
     if (!activeId) return undefined;
     let live = true;
+    setTotalsBusy(true);
     getDashboard(activeId)
       .then((d) => live && setTotals(d.totals))
-      .catch(() => live && setTotals(null));
+      .catch(() => live && setTotals(null))
+      .finally(() => live && setTotalsBusy(false));
     return () => {
       live = false;
     };
@@ -67,13 +71,14 @@ const Home = () => {
   return (
     <div className="flex flex-col gap-5">
       <section data-tour="start" className="rounded-2xl bg-white p-5 text-ink">
-        <p className="text-sm font-semibold text-accent-deep">Campaign 0 for your shop</p>
+        <p className="text-sm font-semibold text-accent-deep">Campaign for your shop</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Say the offer. We write the campaign.</h1>
         <p className="mt-2 max-w-xl text-sm text-ink/65">Answer a few questions out loud or by tapping. Nothing goes out that is not what you said.</p>
         <div role="group" aria-label="Start in a language" className="mt-4 flex flex-wrap gap-2">
           {MAIN_LANGS.map((l, i) => (
             <button key={l.code} type="button" disabled={starting !== null} onClick={() => start(l.code)} className={i === 0 ? 'btn-primary' : 'btn-ghost'}>
               <Mic size={16} /> {starting === l.code ? 'Starting' : `Start in ${l.native}`}
+              <OrbCursor active={starting === l.code} kind="thinking" label="Starting the conversation" />
             </button>
           ))}
           <select aria-label="Start in another language" className="field h-10 w-auto" value="" disabled={starting !== null} onChange={(e) => e.target.value && start(e.target.value)}>
@@ -112,11 +117,12 @@ const Home = () => {
         </button>
       </section>
 
+      {totalsBusy && <OrbLoader kind="loading" size={20} label="Reading this campaign's numbers" className="w-fit flex-row rounded-full bg-white" style={{ padding: '0.25rem 0.75rem' }} />}
       {activeId && <StatCards totals={totals} id={activeId} />}
 
       <section>
         <SectionTitle>Campaigns</SectionTitle>
-        {rows === null && <p className="text-sm text-white/60">Loading campaigns.</p>}
+        {rows === null && <OrbLoader kind="loading" label="Loading campaigns" className="rounded-2xl bg-white" />}
         {rows?.length === 0 && !error && (
           <p className="rounded-2xl border border-dashed border-white/20 p-5 text-sm text-white/70">No campaigns yet. Start one above. It appears here once the conversation is finished.</p>
         )}

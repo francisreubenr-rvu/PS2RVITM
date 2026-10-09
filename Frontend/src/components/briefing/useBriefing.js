@@ -26,7 +26,7 @@ export function useBriefing() {
 
   useEffect(() => {
     let live = true;
-    api('/talk/agent').then((r) => live && setAvailability(r)).catch((e) => live && setAvailability({ available: false, reason: e.message }));
+    api('/voice/status').then((r) => live && setAvailability(r)).catch((e) => live && setAvailability({ available: false, reason: e.message }));
     return () => { live = false; };
   }, []);
 
@@ -51,7 +51,10 @@ export function useBriefing() {
     return () => clearInterval(t);
   }, [status, finish]);
 
-  useEffect(() => () => { conv.current?.endSession?.().catch(() => undefined); }, []);
+  useEffect(() => () => {
+    const c = conv.current;
+    Promise.resolve().then(() => c?.endSession?.()).catch(() => undefined);
+  }, []);
 
   const start = useCallback(async (lang = 'en') => {
     setError('');
@@ -72,7 +75,8 @@ export function useBriefing() {
         const { conversation_token: token } = await voiceToken();
         if (!token) throw new Error('no token');
         transport = { conversationToken: token, connectionType: 'webrtc' };
-      } catch {
+      } catch (error) {
+        if (![404, 405].includes(error.status)) throw error;
         const { signed_url: signedUrl } = await api('/talk/agent');
         if (!signedUrl) throw new Error('The live agent is not available.');
         transport = { signedUrl, connectionType: 'websocket' };

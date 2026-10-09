@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, FileUp, Loader2, Pencil, Plus, Search, ShieldCheck, Trash2, Upload, UserPlus, X } from 'lucide-react';
+import { Download, FileUp, Pencil, Plus, Search, ShieldCheck, Trash2, Upload, UserPlus, X } from 'lucide-react';
 import { API_URL, api } from '../campaign/lib/api';
 import { Field } from '../components/ui';
 import { LANGS as ALL_LANGS } from '../campaign/lib/format';
+import { OrbCursor, OrbLoader, OrbOverlay } from '../orb/orbPresence';
 
 const LANG = Object.fromEntries(ALL_LANGS.map((l) => [l.code, l.name]));
 const EMPTY = { name: '', phone: '', email: '', language: '', tags: '', notes: '', consent_whatsapp: false, consent_email: false, consent_source: '' };
@@ -74,7 +75,7 @@ const PersonForm = ({ initial, onSaved, onCancel }) => {
       <ConsentFields value={v} onChange={set} idPrefix="one" />
       {error && <p role="alert" className="text-sm text-bad">{error}</p>}
       <div className="flex gap-2">
-        <button type="submit" disabled={busy || !v.name.trim()} className="btn-primary">{busy ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Save</button>
+        <button type="submit" disabled={busy || !v.name.trim()} className="btn-primary">{busy ? <OrbCursor active kind="writing" label="Saving" /> : <UserPlus size={15} />} Save</button>
         <button type="button" onClick={onCancel} className="btn-ghost">Cancel</button>
       </div>
     </form>
@@ -130,8 +131,8 @@ const Import = ({ onDone, onCancel }) => {
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={update} onChange={(e) => { setUpdate(e.target.checked); setCheck(null); }} className="accent-[var(--color-accent)]" /> Update people already in the list (merges tags and fills language)</label>
       {error && <p role="alert" className="text-sm text-bad">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={!text.trim() || Boolean(busy)} onClick={() => run(true)} className="btn-ghost">{busy === 'check' ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />} Check the file first</button>
-        <button type="button" disabled={!check || Boolean(busy) || check.added + check.updated === 0} onClick={() => run(false)} className="btn-primary">{busy === 'add' ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} {check ? `Add ${check.added}${check.updated ? ` and update ${check.updated}` : ''}` : 'Add them'}</button>
+        <button type="button" disabled={!text.trim() || Boolean(busy)} onClick={() => run(true)} className="btn-ghost">{busy === 'check' ? <OrbCursor active kind="searching" label="Checking the file" /> : <ShieldCheck size={15} />} Check the file first</button>
+        <button type="button" disabled={!check || Boolean(busy) || check.added + check.updated === 0} onClick={() => run(false)} className="btn-primary">{busy === 'add' ? <OrbCursor active kind="writing" label="Adding the people" /> : <Upload size={15} />} {check ? `Add ${check.added}${check.updated ? ` and update ${check.updated}` : ''}` : 'Add them'}</button>
       </div>
       {check && (
         <div role="status" className="rounded-xl bg-ink/5 p-3 text-sm">
@@ -158,17 +159,22 @@ const Customers = () => {
   const [mode, setMode] = useState(null); // null | { type: 'add' } | { type: 'edit', person } | { type: 'import' }
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [fetching, setFetching] = useState(false);
+  const [removing, setRemoving] = useState('');
 
   const load = useCallback(async () => {
     const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
     if (q.trim()) params.set('q', q.trim());
     if (language) params.set('language', language);
     if (consent) params.set('consent', consent);
+    setFetching(true);
     try {
       setData(await api(`/customers?${params}`));
       setError('');
     } catch (e) {
       setError(e.message);
+    } finally {
+      setFetching(false);
     }
   }, [q, language, consent, offset]);
 
@@ -179,22 +185,28 @@ const Customers = () => {
 
   const remove = async (p) => {
     if (!window.confirm(`Remove ${p.name} from your list? This cannot be undone.`)) return;
+    setRemoving('Removing from your list');
     try {
       await api(`/customers/${p.id}`, { method: 'DELETE' });
       setNotice(`${p.name} was removed.`);
       load();
     } catch (e) {
       setError(e.message);
+    } finally {
+      setRemoving('');
     }
   };
   const removeAll = async () => {
     if (!window.confirm('Delete EVERY customer from this app? This cannot be undone.')) return;
+    setRemoving('Deleting every customer');
     try {
       const r = await api('/customers?confirm=true', { method: 'DELETE' });
       setNotice(`${r.deleted} customers were deleted.`);
       load();
     } catch (e) {
       setError(e.message);
+    } finally {
+      setRemoving('');
     }
   };
   const s = data?.summary;
@@ -219,6 +231,7 @@ const Customers = () => {
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex h-10 min-w-48 flex-1 items-center gap-2 rounded-full bg-black/25 px-4 text-white/60 ring-1 ring-white/10 focus-within:ring-accent">
           <Search size={16} className="shrink-0" />
+          {fetching && Boolean(data) && <span className="rounded-full bg-white"><OrbCursor active kind="searching" label="Searching" /></span>}
           <input value={q} onChange={(e) => { setQ(e.target.value); setOffset(0); }} placeholder="Search name, phone or email" aria-label="Search customers" className="w-full bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none" />
         </label>
         <select value={language} onChange={(e) => { setLanguage(e.target.value); setOffset(0); }} aria-label="Filter by language" className="h-10 rounded-full bg-black/25 px-3 text-sm text-white ring-1 ring-white/10">
@@ -236,6 +249,8 @@ const Customers = () => {
         <a href={`${API_URL}/customers/export.csv`} className="btn-glass"><Download size={15} /> Export</a>
       </div>
 
+      {!data && !error && <OrbLoader kind="loading" label="Loading your customers" className="rounded-2xl bg-white" />}
+      <OrbOverlay show={Boolean(removing)} kind="thinking" label={removing} />
       {notice && <p role="status" className="rounded-2xl bg-good/15 px-4 py-2 text-sm">{notice}</p>}
       {error && <p role="alert" className="rounded-2xl bg-bad/15 px-4 py-2 text-sm">{error}</p>}
       {mode?.type === 'add' && <PersonForm onSaved={done} onCancel={() => setMode(null)} />}

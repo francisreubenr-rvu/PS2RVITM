@@ -110,3 +110,21 @@ def test_a_tokenless_reply_is_502(rig):
     Fake.plan = {"conversation/token": httpx.Response(200, json={"conversation_id": "c1"})}
     r = c.get("/voice/token")
     assert r.status_code == 502 and r.json()["detail"]["code"] == "voice_provider_error"
+
+
+def test_provider_rate_limit_remains_429(rig):
+    _, c, mp = rig
+    mp.setenv("AGNEZ_ELEVENLABS_API_KEY", "el-key")
+    mp.setenv("AGNEZ_AGENT_ID", "agent_123")
+    Fake.plan = {"conversation/token": httpx.Response(429, json={})}
+    response = c.get("/voice/token")
+    assert response.status_code == 429
+    assert "Try again" in response.json()["detail"]["message"]
+
+
+def test_status_checks_configuration_without_minting(rig):
+    _, c, mp = rig
+    mp.setenv("AGNEZ_ELEVENLABS_API_KEY", "el-key")
+    mp.setenv("AGNEZ_AGENT_ID", "agent_123")
+    assert c.get("/voice/status").json()["available"] is True
+    assert Fake.calls == []

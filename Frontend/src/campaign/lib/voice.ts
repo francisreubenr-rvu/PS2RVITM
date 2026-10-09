@@ -1,132 +1,99 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { API_URL, api } from "./api";
-import { recordingSupported, startRecording, type Recording } from "./recorder";
-import { useRecognizer } from "./speech";
+import { api, voiceToken } from "./api";
 
-// One microphone hook for every screen. It picks the engine:
-//   browser  the browser's own speech recognition (live words as you talk, nothing is uploaded by this app)
-//   server   record, send the audio to this app's /stt, get text back (Vosk offline for English and Hindi, Groq for Kannada)
-// Kannada goes to the server when Groq is on: browser recognition for Kannada is unreliable and Vosk has no Kannada model.
-// The owner can force an engine in Settings. The transcript is only text to correct; it never writes locked facts.
+// One microphone hook for every screen outside Talk, and it is Agnez (the ElevenLabs agent) that hears you. A dictation opens a
+// short-lived call, takes the first thing you say as text, and closes. The agent is told to stay silent and her volume is zero,
+// so only the words come back. The key and the agent id stay on the server: the page gets a short-lived token from /voice/token.
+// The transcript is only text to correct; it never writes locked facts. Talk keeps its own continuous call (src/voice/agnez.jsx).
 
-export type VoicePref = "auto" | "server" | "browser";
-const PREF_KEY = "ll-voice-engine";
-export const readVoicePref = (): VoicePref => {
-  try { const v = localStorage.getItem(PREF_KEY); return v === "server" || v === "browser" ? v : "auto"; } catch { return "auto"; }
-};
-export const saveVoicePref = (v: VoicePref) => { try { localStorage.setItem(PREF_KEY, v); } catch { /* storage blocked */ } };
+const OVERRIDE_LANGS = new Set(["en", "hi", "ta"]);
+const MAX_SECONDS = 45;
+const BRIEF = "This is a dictation into a text box. Do not speak and do not answer. Only listen.";
 
-type Engines = { engines: Record<string, string | null>; groq: { active: boolean } };
-
-const SERVER_ERRORS: Record<string, string> = {
-  stt_unsupported: "This language cannot be transcribed on this server. Type instead.",
-  groq_failed: "The Kannada speech service did not answer. Try again in a moment, or type instead.",
-  audio_too_large: "That recording was too long. Keep each answer under a minute.",
-  bad_audio: "The recording could not be read. Try again, or type instead.",
-};
+type Session = { endSession: () => Promise<void>; setVolume: (o: { volume: number }) => void; sendContextualUpdate: (t: string) => void };
 
 export function useVoiceInput(lang: string, onFinal: (text: string) => void) {
-  const browser = useRecognizer(lang, onFinal);
-  const [engines, setEngines] = useState<Engines | null>(null);
-  const [pref, setPref] = useState<VoicePref>(readVoicePref);
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [listening, setListening] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [interim, setInterim] = useState("");
   const [error, setError] = useState("");
-  const recRef = useRef<Recording | null>(null);
+  const conv = useRef<Session | null>(null);
+  const timer = useRef(0);
   const cbRef = useRef(onFinal);
   cbRef.current = onFinal;
 
   useEffect(() => {
     let live = true;
-    api<Engines>("/stt/languages").then((e) => live && setEngines(e)).catch(() => live && setEngines(null));
-    const sync = () => setPref(readVoicePref());
-    window.addEventListener("storage", sync);
-    return () => { live = false; window.removeEventListener("storage", sync); };
+    api<{ available: boolean }>("/voice/status").then((r) => live && setAvailable(Boolean(r?.available))).catch(() => live && setAvailable(false));
+    return () => { live = false; };
   }, []);
 
-  const serverOk = recordingSupported() && Boolean(engines?.engines?.[lang]);
-  const engine: "browser" | "server" | null = (() => {
-    if (pref === "server" && serverOk) return "server";
-    if (pref === "browser") return browser.supported ? "browser" : null;
-    if (lang === "kn" && serverOk) return "server";
-    if (browser.supported) return "browser";
-    return serverOk ? "server" : null;
-  })();
+  const stop = useCallback(() => {
+    window.clearTimeout(timer.current);
+    const c = conv.current;
+    conv.current = null;
+    setListening(false);
+    setConnecting(false);
+    setInterim("");
+    // endSession may return nothing rather than a promise: never call .catch on it directly.
+    void Promise.resolve().then(() => c?.endSession?.()).catch(() => undefined);
+  }, []);
 
-  useEffect(() => {
-    if (!recording) return undefined;
-    setSeconds(0);
-    const t = window.setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => window.clearInterval(t);
-  }, [recording]);
-
-  useEffect(() => () => recRef.current?.cancel(), []);
-
-  const finish = useCallback(async () => {
-    const rec = recRef.current;
-    recRef.current = null;
-    setRecording(false);
-    if (!rec) return;
-    setTranscribing(true);
-    try {
-      const wav = await rec.stop();
-      if (!wav) { setError("I did not catch that. Tap the mic and try again, or type instead."); return; }
-      const form = new FormData();
-      form.append("audio", wav, "speech.wav");
-      form.append("lang", lang);
-      let response: Response;
-      try {
-        response = await fetch(`${API_URL}/stt`, { method: "POST", body: form, credentials: "include" });
-      } catch {
-        setError("Cannot reach the server. Type instead.");
-        return;
-      }
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        const code = body?.detail?.code as string | undefined;
-        setError((code && SERVER_ERRORS[code]) || body?.detail?.message || "Speech recognition failed. Type instead.");
-        return;
-      }
-      const text = String(body?.text || "").trim();
-      if (!text) setError(body?.silent ? "I did not hear anything. Tap the mic and try again." : "I did not catch that. Tap the mic and try again, or type instead.");
-      else cbRef.current(text);
-    } finally {
-      setTranscribing(false);
-    }
-  }, [lang]);
+  useEffect(() => stop, [stop]);
 
   const start = useCallback(async () => {
-    if (engine === "browser") { setError(""); browser.start(); return; }
-    if (engine !== "server") return;
+    if (conv.current || connecting) return;
     setError("");
-    window.speechSynthesis?.cancel();
+    setInterim("");
+    setConnecting(true);
     try {
-      recRef.current = await startRecording(() => { void finish(); });
-      setRecording(true);
+      const { conversation_token: token } = await voiceToken();
+      if (!token) throw new Error("not configured");
+      const { Conversation } = await import("@elevenlabs/client");
+      const opts: Record<string, unknown> = {
+        overrides: { agent: { prompt: { prompt: BRIEF }, firstMessage: '' } },
+        conversationToken: token,
+        connectionType: "webrtc",
+        onMessage: ({ message, source }: { message?: string; source?: string }) => {
+          const text = String(message || "").trim();
+          if (!text || source !== "user") return;
+          stop();
+          cbRef.current(text);
+        },
+        onDisconnect: () => { if (conv.current) stop(); },
+        onError: (m: unknown) => setError(String((m as Error)?.message || m || "Agnez hit a problem. Type instead.")),
+      };
+      let session: Session;
+      try {
+        session = (await Conversation.startSession(OVERRIDE_LANGS.has(lang) ? { ...opts, overrides: { agent: { language: lang, prompt: { prompt: BRIEF }, firstMessage: '' } } } : opts)) as unknown as Session;
+      } catch (error) {
+        throw error;
+      }
+      conv.current = session;
+      try { session.setVolume({ volume: 0 }); session.sendContextualUpdate(BRIEF); } catch { /* not fatal */ }
+      setConnecting(false);
+      setListening(true);
+      setInterim("Listening to Agnez");
+      timer.current = window.setTimeout(stop, MAX_SECONDS * 1000);
     } catch (e) {
-      const name = (e as DOMException)?.name;
-      setError(name === "NotAllowedError" ? "Microphone access is blocked. Allow it in the browser, or type instead."
-        : name === "NotFoundError" ? "No microphone found. Type instead." : "Could not start the microphone.");
+      setConnecting(false);
+      const m = `${(e as Error)?.name || ""} ${(e as Error)?.message || ""}`;
+      setError(/permission|denied|notallowed/i.test(m) ? "Microphone access is blocked. Allow it in the browser, or type instead."
+        : /not configured|503|unavailable/i.test(m) ? "Agnez is not set up on this server. Type instead." : "Could not reach Agnez. Type instead.");
     }
-  }, [engine, browser, finish]);
+  }, [lang, connecting, stop]);
 
-  const stop = useCallback(() => {
-    if (engine === "browser") browser.stop();
-    else void finish();
-  }, [engine, browser, finish]);
-
-  const live = engine === "browser";
   return {
-    supported: engine !== null,
-    engine,
-    listening: live ? browser.listening : recording,
-    transcribing,
-    interim: live ? browser.interim : transcribing ? "Transcribing" : recording ? `Recording ${seconds}s` : "",
-    error: live ? browser.error || error : error,
+    supported: available !== false,
+    engine: "agnez" as const,
+    listening,
+    transcribing: connecting,
+    interim: connecting ? "Connecting to Agnez" : interim,
+    error,
     start,
     stop,
-    clearError: () => { setError(""); browser.clearError(); },
-    note: engine === "server" && engines?.engines?.[lang] === "groq" ? "This is sent to Groq to be transcribed. You can switch that off in Settings." : "",
+    clearError: () => setError(""),
+    note: "",
   };
 }

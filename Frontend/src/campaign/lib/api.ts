@@ -64,7 +64,7 @@ export const finishInterview = (sid: string) => post<{ campaign_id: string }>(`/
 export const getPlan = (id: string) => api<Plan>(`/campaign/${id}/plan`);
 export const approvePlan = (id: string) => post<Plan>(`/campaign/${id}/plan/approve`);
 
-// Campaign 0
+// Campaign
 export const getBoard = (id: string) => api<Board>(`/campaign/${id}/board`);
 export const generate = (id: string) => post<Board>("/campaign/generate", { campaign_id: id });
 export const getAssetState = (id: string) => api<AssetStateMap>(`/campaign/${id}/assets/state`);

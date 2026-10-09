@@ -6,6 +6,7 @@ import { api } from '../campaign/lib/api';
 import { CHANNEL_ORDER, LANGS as ALL_LANGS, channelLabel } from '../campaign/lib/format';
 import { navigate } from '../lib/router';
 import { useCurrent } from '../campaign/lib/current';
+import { OrbCursor, OrbLoader } from '../orb/orbPresence';
 
 const LANGS = ALL_LANGS.map((l) => ({ id: l.code, label: l.draft ? `${l.name} (draft)` : l.name }));
 const AUDIENCES = ['students', 'office_workers', 'families', 'regulars', 'tourists', 'nearby_residents'].map((id) => ({
@@ -33,6 +34,7 @@ const BudgetPlanner = () => {
   const [review, setReview] = useState('8:00');
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState('');
+  const [solving, setSolving] = useState(false);
 
   const limits = useMemo(
     () => ({ time_s: parseDuration(time), money_inr: Number(money), review_s: parseDuration(review) }),
@@ -51,10 +53,12 @@ const BudgetPlanner = () => {
       return undefined;
     }
     let live = true;
+    setSolving(true);
     const t = setTimeout(() => {
       api('/planner/solve', { method: 'POST', body: JSON.stringify({ wanted, reel_seconds: reels ? Number(reelSeconds) : 0, reels, limits }) })
         .then((p) => live && (setPlan(p), setError('')))
-        .catch((e) => live && setError(e.message));
+        .catch((e) => live && setError(e.message))
+        .finally(() => live && setSolving(false));
     }, 250);
     return () => {
       live = false;
@@ -111,13 +115,14 @@ const BudgetPlanner = () => {
           ) : error ? (
             <p role="alert" className="py-8 text-center text-sm text-bad">{error}</p>
           ) : !plan ? (
-            <p className="py-8 text-center text-sm text-ink/55">Working it out.</p>
+            <OrbLoader kind="solving" label="Working it out" />
           ) : !plan.feasible ? (
             <p className="py-8 text-center text-sm text-bad">Even the cheapest plan is over a limit. Raise time, money or review effort.</p>
           ) : (
             <>
               <CardTitle sub={`Exact solve on the server. Timing from ${plan.calibration.source === 'defaults' ? 'documented limits' : 'a measured calibration'}.`}>
                 Plan: {chosen} assets, {clips.length ? `${clips.length} reel clip${clips.length === 1 ? '' : 's'}` : 'no reel'}
+                <OrbCursor active={solving} kind="solving" label="Re-solving" />
               </CardTitle>
               <dl className="mb-5 grid grid-cols-3 gap-3 text-center">
                 {[
@@ -174,9 +179,9 @@ const BudgetPlanner = () => {
               ))}
             </ul>
             <button type="button" onClick={() => navigate(cur.id ? 'campaign' : 'voice', cur.id)} className="btn-primary mt-5 w-full">
-              {cur.id ? 'Go to Campaign 0' : 'Start talking'} <ArrowRight size={16} />
+              {cur.id ? 'Go to Campaign' : 'Start talking'} <ArrowRight size={16} />
             </button>
-            <p className="mt-2 text-xs text-ink/50">Campaign 0 writes the channels and languages you chose in Talk. This page shows what your limits can hold.</p>
+            <p className="mt-2 text-xs text-ink/50">Campaign writes the channels and languages you chose in Talk. This page shows what your limits can hold.</p>
           </section>
         )}
       </div>

@@ -1,8 +1,11 @@
 """changes: change by voice. Propose (classify, ground, dry-run), then apply only after the owner confirms."""
 from __future__ import annotations
 
+from app.agnes import text_ready
+
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -13,6 +16,7 @@ from app import speech
 from app.agnes import AgnesError
 from app.config import CHANNELS, LANGS
 from app.db import Database
+from app.reply import DEMO_CAMPAIGN_PREFIX
 from app.schemas import OfferFacts
 from app.service import Service, ServiceError, now
 from app.worker import parse_json_object, start_jobs
@@ -191,7 +195,7 @@ def _tone_targets(db: Database, campaign_id: str, text: str, lang: str | None, c
 
 async def _classify(request: Request, text: str) -> dict[str, Any] | None:
     settings = request.app.state.settings
-    if not settings.agnes_api_key:
+    if not text_ready(request.app):
         return None
     try:
         raw = await request.app.state.agnes.chat(classify_messages(text), cache_kind="change", temperature=0, max_tokens=500)
@@ -299,7 +303,7 @@ async def apply(campaign_id: str, pid: str, request: Request) -> dict:
     if not proposal["grounded"]:
         raise _http(409, "not_grounded", "Part of that change was not in your words. Say it again.")
     service = Service(db)
-    has_key = bool(request.app.state.settings.agnes_api_key)
+    has_key = text_ready(request.app)
     try:
         if proposal["kind"] == "fact":
             service.apply_change(campaign_id, proposal["text"], proposal["patch"])
@@ -327,3 +331,39 @@ async def apply(campaign_id: str, pid: str, request: Request) -> dict:
         raise _http(exc.status, exc.code, exc.message) from exc
     db.execute("UPDATE change_proposal SET status = 'applied' WHERE id = ?", (pid,))
     return service.board(campaign_id)
+
+
+# ---------------------------------------------------------------- sample data
+# The audit trail of the demo campaign, written by scripts/seed_demo.py so the Change Log screen can be walked through.
+# Inserted oldest first, so the newest appears at the top where db.events orders by descending id. It is labelled
+# "Sample" wherever the demo campaign's id is shown.
+DEMO_EVENTS: tuple[dict[str, Any], ...] = (
+    {"hours_ago": 49, "actor": "owner", "action": "campaign_created", "detail": "Transcript stored from a walkthrough."},
+    {"hours_ago": 48, "actor": "system", "action": "brief_ready", "detail": "Suggested facts are not locked. Review them before approval."},
+    {"hours_ago": 47, "actor": "owner", "action": "facts_approved", "detail": "Offer facts v1 locked."},
+    {"hours_ago": 46, "actor": "system", "action": "matrix_built", "detail": "6 asset slots added."},
+    {"hours_ago": 45, "actor": "system", "action": "copy_written", "detail": "Wrote 6 assets from the locked facts."},
+    {"hours_ago": 30, "actor": "owner", "action": "reply_approved", "detail": "Replied to a customer about Sunday."},
+    {"hours_ago": 20, "actor": "owner", "action": "tone_change", "detail": "Make the Hindi one warmer and shorter."},
+    {"hours_ago": 8, "actor": "system", "action": "change_applied", "detail": "Changed discount_percent to 25. 6 written assets will be rewritten."},
+    {"hours_ago": 2, "actor": "owner", "action": "asset_approved", "detail": "WhatsApp copy approved, ready to paste."},
+)
+
+
+def seed_demo_events(db: Database, campaign_id: str) -> int:
+    """Replace the sample change-log events in a demo campaign with the fixed set above. Returns how many were written."""
+    clear_demo_events(db, campaign_id)
+    stamp = datetime.now(timezone.utc)
+    for row in DEMO_EVENTS:
+        db.log((stamp - timedelta(hours=row["hours_ago"])).isoformat(), row["actor"], row["action"], row["detail"], campaign_id)
+    return len(DEMO_EVENTS)
+
+
+def clear_demo_events(db: Database, campaign_id: str) -> int:
+    """Remove the sample change-log events. Only rows whose campaign is the demo campaign are touched."""
+    if not str(campaign_id or "").startswith(DEMO_CAMPAIGN_PREFIX):
+        return 0
+    rows = db.query("SELECT id FROM event_log WHERE campaign_id = ?", (campaign_id,))
+    for row in rows:
+        db.execute("DELETE FROM event_log WHERE id = ?", (row["id"],))
+    return len(rows)

@@ -45,6 +45,8 @@ def test_referee_merges_and_names_disagreements():
 
 
 class PanelAgnes:
+    text_ready = True
+
     async def chat(self, messages, *, cache_kind, temperature=0.2, max_tokens=1200):
         if cache_kind == "panel_tone":
             return json.dumps({"verdict": "ok", "reason": "Warm enough."})

@@ -2,6 +2,8 @@
 
 @theme {
   --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  /* Editorial display face for headings. Type is monochrome: hierarchy comes from scale, weight and spacing. */
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
 
   /* Colour grading from Francis's Counter Voice design (apps/web/DESIGN.md): warm ink, paper and card,
      one action colour. Settings > Appearance can swap the accent: lib/appearance.js sets --color-accent and
@@ -18,11 +20,12 @@
   --color-accent-hover: color-mix(in oklab, var(--color-accent) 82%, white);
   --color-accent-deep: color-mix(in oklab, var(--color-accent) 52%, black);
   --color-accent-soft: color-mix(in oklab, var(--color-accent) 20%, white);
-  --color-good: #1f9d55;
-  --color-rose: #e0457b;
-  --color-warn: #c77c02;
-  --color-bad: #d63a3a;
-  --color-info: #3d7be0;
+  /* Status tones, muted toward the warm palette so the app carries less colour. Each keeps its hue and reads on paper. */
+  --color-good: #4f8a63;
+  --color-rose: #b0607d;
+  --color-warn: #9a7420;
+  --color-bad: #bb524a;
+  --color-info: #5b7a99;
 }
 
 /* Generated copy in Indic scripts: correct fonts and room for matras. */
@@ -78,22 +81,22 @@ html {
   color-scheme: dark;
 }
 
-/* Surface style, picked in Settings > Appearance. Glass follows iOS 26 Liquid Glass: mostly clear, a bright rim,
-   and a dimmed, saturated blur behind, so text stays readable. */
+/* Surface style, picked in Settings > Appearance. One surface now: Glass follows iOS 26 Liquid Glass, mostly clear
+   with a bright rim and a dimmed, saturated blur behind, so text stays readable. */
 :root {
   --glass-alpha: 0.38;
   --glass-blur: 22px;
   --card-alpha: 0.78;
 }
-:root[data-surface='clear'] {
-  --glass-alpha: 0.22;
-  --glass-blur: 28px;
-  --card-alpha: 0.66;
-}
-:root[data-surface='solid'] {
-  --glass-alpha: 0.97;
-  --glass-blur: 0px;
-  --card-alpha: 1;
+
+/* Editorial monochrome headings: the display serif carries the voice, ink carries the colour, scale and weight carry
+   the hierarchy. Applies to every heading in the app without per-screen styling. */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 body {
@@ -101,14 +104,14 @@ body {
   min-height: 100dvh;
 }
 
-/* Animated gradient behind the app. A warm ink to ochre base (Counter Voice grading), with two layers of soft colour blobs that drift slowly.
-   Only transforms animate (cheap on the GPU), and the drift stops for people who ask for reduced motion. */
+/* Gradient behind the app. A muted warm ink base with two layers of soft, low-chroma blobs held still, so the backdrop
+   carries far less colour than before while the glass keeps the same frosted look. */
 .app-backdrop {
   position: fixed;
   inset: 0;
   z-index: -1;
   overflow: hidden;
-  background: linear-gradient(135deg, #1f1a14 0%, #2e261d 28%, #5a4220 56%, #7a5a1e 80%, #2a2118 100%);
+  background: linear-gradient(135deg, #201b15 0%, #2b241d 34%, #3a3025 62%, #2e261d 84%, #221c16 100%);
 }
 
 .app-backdrop::before,
@@ -116,40 +119,20 @@ body {
   content: '';
   position: absolute;
   inset: -35%;
-  will-change: transform;
 }
 
 .app-backdrop::before {
   background:
-    radial-gradient(38rem 30rem at 18% 22%, color-mix(in srgb, var(--color-accent) 50%, transparent), transparent 66%),
-    radial-gradient(34rem 28rem at 82% 18%, rgb(214 140 60 / 0.38), transparent 66%),
-    radial-gradient(42rem 32rem at 72% 84%, rgb(30 77 107 / 0.42), transparent 66%);
-  animation: backdrop-drift-a 28s ease-in-out infinite alternate;
+    radial-gradient(38rem 30rem at 18% 22%, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 66%),
+    radial-gradient(34rem 28rem at 82% 18%, rgb(120 96 60 / 0.16), transparent 66%),
+    radial-gradient(42rem 32rem at 72% 84%, rgb(58 60 64 / 0.18), transparent 66%);
 }
 
 .app-backdrop::after {
   background:
-    radial-gradient(36rem 26rem at 28% 80%, rgb(247 194 74 / 0.32), transparent 66%),
-    radial-gradient(30rem 26rem at 58% 46%, rgb(243 239 230 / 0.12), transparent 66%),
-    radial-gradient(26rem 22rem at 94% 58%, rgb(155 90 40 / 0.3), transparent 66%);
-  animation: backdrop-drift-b 38s ease-in-out infinite alternate;
-}
-
-@keyframes backdrop-drift-a {
-  from { transform: translate3d(-4%, 3%, 0) rotate(0deg) scale(1); }
-  to { transform: translate3d(5%, -4%, 0) rotate(9deg) scale(1.14); }
-}
-
-@keyframes backdrop-drift-b {
-  from { transform: translate3d(5%, -3%, 0) rotate(0deg) scale(1.1); }
-  to { transform: translate3d(-5%, 5%, 0) rotate(-11deg) scale(1); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-backdrop::before,
-  .app-backdrop::after {
-    animation: none;
-  }
+    radial-gradient(36rem 26rem at 28% 80%, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 66%),
+    radial-gradient(30rem 26rem at 58% 46%, rgb(243 239 230 / 0.07), transparent 66%),
+    radial-gradient(26rem 22rem at 94% 58%, rgb(90 74 56 / 0.14), transparent 66%);
 }
 
 /* The three.js shader draws the gradient itself, so the two CSS blob layers step aside while it is on screen. */
@@ -157,13 +140,22 @@ body {
 .app-backdrop.has-shader::before,
 .app-backdrop.has-shader::after { display: none; }
 
-/* Background, picked in Settings > Appearance. */
-:root[data-backdrop='still'] .app-backdrop::before,
-:root[data-backdrop='still'] .app-backdrop::after {
-  animation: none;
-}
+/* Background, picked in Settings > Appearance. The base above is the still gradient; plain drops the blobs. */
 :root[data-backdrop='plain'] .app-backdrop::before,
 :root[data-backdrop='plain'] .app-backdrop::after {
+  display: none;
+}
+
+/* Pixel trail background. The photograph is toned to the warm ink palette (greyscale, a warm cast, dimmed) so it adds
+   texture and no extra colour; the gradient blobs step aside so the revealed squares are the only thing that moves. */
+.backdrop-trail {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: grayscale(1) sepia(0.5) saturate(0.8) brightness(0.78) contrast(1.05);
+}
+:root[data-backdrop='trail'] .app-backdrop::before,
+:root[data-backdrop='trail'] .app-backdrop::after {
   display: none;
 }
 

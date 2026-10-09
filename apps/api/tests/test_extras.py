@@ -32,21 +32,21 @@ def test_calibration_route_reports_source(tmp_path):
 
 def test_provider_keys_are_write_only_and_encrypted(tmp_path):
     c = client(tmp_path)
-    r = c.put("/settings/providers/text", json={"provider": "agnes", "api_key": "sk-secret-123456"})
+    r = c.put("/settings/providers/image", json={"provider": "agnes", "api_key": "sk-secret-123456"})
     assert r.status_code == 200 and r.json()["last4"] == "3456" and "api_key" not in r.json()
     assert "sk-secret" not in c.get("/settings/providers").text
-    raw = c.app.state.db.query_one("SELECT key_enc FROM provider_keys WHERE capability='text'")["key_enc"]
+    raw = c.app.state.db.query_one("SELECT key_enc FROM provider_keys WHERE capability='image'")["key_enc"]
     assert b"sk-secret" not in raw
     # a blank key on the next save keeps the stored one
-    c.put("/settings/providers/text", json={"provider": "agnes", "model": "agnes-3.0-flash"})
-    assert c.get("/settings/providers").json()["providers"][0]["last4"] == "3456"
+    c.put("/settings/providers/image", json={"provider": "agnes", "model": "agnes-image-2.5-flash"})
+    assert c.get("/settings/providers").json()["providers"][1]["last4"] == "3456"
     assert c.app.state.agnes._require_key() == "sk-secret-123456"
-    c.delete("/settings/providers/text")
-    assert c.get("/settings/providers").json()["providers"][0]["key_set"] is False
+    c.delete("/settings/providers/image")
+    assert c.get("/settings/providers").json()["providers"][1]["key_set"] is False
 
 
 def test_provider_custom_url_blocks_private_hosts(tmp_path):
-    r = client(tmp_path).put("/settings/providers/text", json={"provider": "custom", "base_url": "https://127.0.0.1/v1"})
+    r = client(tmp_path).put("/settings/providers/image", json={"provider": "custom", "base_url": "https://127.0.0.1/v1"})
     assert r.status_code == 422 and r.json()["detail"]["code"] == "blocked_url"
 
 
@@ -227,3 +227,14 @@ def test_planner_uses_the_configured_rpm(monkeypatch):
     monkeypatch.setenv("TEXT_RPM", "1000"); monkeypatch.setenv("VIDEO_RPM", "5"); monkeypatch.setenv("IMAGE_RPM", "oops")
     c = latest_calibration()
     assert c.rpm == {"text": 1000.0, "image": 10, "video": 5.0} and "TEXT_RPM" in c.source  # a bad value is ignored, not fatal
+
+
+def test_text_provider_is_fixed_and_reports_real_groq_state(tmp_path, monkeypatch):
+    c = client(tmp_path)
+    assert c.put("/settings/providers/text",json={"provider":"agnes","api_key":"unused"}).status_code == 409
+    row=c.get("/settings/providers").json()["providers"][0]
+    assert row["provider"] == "groq" and row["model"] == "qwen/qwen3.8-27b" and row["active"] is False
+    monkeypatch.setenv("GROQ_API_KEY","test-key")
+    assert c.get("/settings/providers").json()["providers"][0]["active"] is True
+    c.put("/settings/toggles/groq",json={"enabled":False})
+    assert c.get("/settings/providers").json()["providers"][0]["active"] is False

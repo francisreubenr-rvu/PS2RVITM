@@ -146,7 +146,8 @@ async def read_channel(client: httpx.AsyncClient, access: str) -> dict[str, Any]
 
 
 def view(db: Database, owner: str) -> dict[str, Any]:
-    base = {"provider": "youtube", "label": "YouTube", "configured": configured(), "connected": False}
+    base = {"provider": "youtube", "label": "YouTube", "configured": configured(), "connected": False,
+            "missing": [n for n in ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET") if not _env(n)]}
     row = db.query_one("SELECT * FROM connection WHERE provider = 'youtube' AND owner = ?", (owner,))
     if not row:
         return base

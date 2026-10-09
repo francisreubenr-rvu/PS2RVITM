@@ -4,13 +4,14 @@ import { AnimatePresence, motion, useSpring, useTransform } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Check, Volume2, VolumeX, X } from 'lucide-react';
 import Logo from '../Logo';
 import { LANGS } from '../../campaign/lib/format';
-import { useSpeaker } from '../../campaign/lib/speech';
+import ThinkingOrb from '../../orb/ThinkingOrb';
 import { startInterview } from '../../campaign/lib/api';
 import { go } from '../../campaign/lib/current';
 import { navigate } from '../../lib/router';
 import { INTRO_DONE, introActive } from '../../lib/intro';
 import { TOUR_EVENT, hasSeenTour, markTourSeen, readTourLang, saveTourLang, tourOwner } from '../../lib/tour';
 import { COPY, STEPS, WELCOME } from './copy';
+import { clipUrl, useNarration } from './useNarration';
 
 // First-run walkthrough. The page behind is dimmed and blurred except for a spotlight on the element being
 // explained; the spotlight glides from one element to the next, and a hand-drawn arrow points from the card to it.
@@ -100,7 +101,7 @@ export default function Walkthrough({ user }) {
   const [starting, setStarting] = useState(false);
   const cardRef = useRef(null);
   const primaryRef = useRef(null);
-  const { speak, hasVoice } = useSpeaker(lang);
+  const { playing, play, stop } = useNarration();
 
   const step = STEPS[index];
   const copy = COPY[lang] || COPY.en;
@@ -131,9 +132,9 @@ export default function Walkthrough({ user }) {
 
   const close = useCallback(() => {
     markTourSeen(owner);
-    window.speechSynthesis?.cancel();
+    stop();
     setOpen(false);
-  }, [owner]);
+  }, [owner, stop]);
 
   const next = useCallback(() => setIndex((i) => Math.min(i + 1, STEPS.length - 1)), []);
   const back = useCallback(() => setIndex((i) => Math.max(i - 1, 1)), []);
@@ -167,6 +168,10 @@ export default function Walkthrough({ user }) {
   useEffect(() => {
     if (!open) return undefined;
     const el = findTarget(step.targets);
+    // Start each step from the top of the page. An earlier step that scrolled the page (a tall card on a phone) otherwise
+    // leaves the next header target pushed against, or past, the top edge with its spotlight cut off.
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'auto' });
+    window.scrollTo({ top: 0, behavior: 'auto' }); // the bottom flow pill nudges the window itself on a phone
     el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
     let raf = 0;
     const tick = () => {
@@ -206,10 +211,15 @@ export default function Walkthrough({ user }) {
   }, [open, rect, view, step, hx, hy, hw, hh, hr]);
   const clipPath = useTransform([hx, hy, hw, hh, hr], ([x, y, w, h, r]) => holePath(x, y, w, h, r));
 
+  // Agnez narrates each step from a pre-made clip. The first card plays the greeting in each language in turn, since
+  // the person has not chosen one yet; choosing a language, moving on, skipping or turning the speaker off stops it.
   useEffect(() => {
-    if (!open || step.id === 'welcome' || !readAloud || !hasVoice || !text) return;
-    speak(`${text.title}. ${text.body}`, true);
-  }, [open, step, readAloud, hasVoice, text, speak]);
+    if (!open || !readAloud) {
+      stop();
+      return;
+    }
+    play(step.id === 'welcome' ? TOUR_LANGS.map((l) => clipUrl(l.code, 'welcome')) : [clipUrl(lang, step.id)]);
+  }, [open, step.id, lang, readAloud, play, stop]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -314,25 +324,24 @@ export default function Walkthrough({ user }) {
                 transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
               >
                 {step.id === 'welcome' ? (
-                  <Welcome name={user?.name?.split(' ')[0]} lang={lang} onChoose={chooseLang} onSkip={close} primaryRef={primaryRef} />
+                  <Welcome name={user?.name?.split(' ')[0]} lang={lang} onChoose={chooseLang} onSkip={close} primaryRef={primaryRef} speaking={playing} />
                 ) : (
                   <>
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold text-accent-deep">{copy.ui.step(n, TOURED)}</span>
+                      <span className="flex items-center gap-2 text-xs font-semibold text-accent-deep">
+                        {copy.ui.step(n, TOURED)}
+                        {playing && <ThinkingOrb state="composing" size={20} theme="light" aria-label="Agnez is speaking" />}
+                      </span>
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => {
-                            if (readAloud) window.speechSynthesis?.cancel();
-                            setReadAloud((v) => !v);
-                          }}
-                          disabled={!hasVoice}
-                          aria-pressed={readAloud && hasVoice}
-                          aria-label={hasVoice ? copy.ui.read : copy.ui.noVoice}
-                          title={hasVoice ? copy.ui.read : copy.ui.noVoice}
-                          className="grid size-8 place-items-center rounded-full text-ink/55 transition-colors hover:bg-ink/5 hover:text-ink disabled:opacity-35"
+                          onClick={() => setReadAloud((v) => !v)}
+                          aria-pressed={readAloud}
+                          aria-label={copy.ui.read}
+                          title={copy.ui.read}
+                          className="grid size-8 place-items-center rounded-full text-ink/55 transition-colors hover:bg-ink/5 hover:text-ink"
                         >
-                          {readAloud && hasVoice ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                          {readAloud ? <Volume2 size={16} /> : <VolumeX size={16} />}
                         </button>
                         <button type="button" onClick={close} aria-label={copy.ui.skip} title={copy.ui.skip} className="grid size-8 place-items-center rounded-full text-ink/55 transition-colors hover:bg-ink/5 hover:text-ink">
                           <X size={16} />
@@ -402,15 +411,18 @@ const Dots = ({ index }) => (
 );
 
 // Step 0: the question is asked in all three languages, since we do not know theirs yet.
-const Welcome = ({ name, lang, onChoose, onSkip, primaryRef }) => (
+const Welcome = ({ name, lang, onChoose, onSkip, primaryRef, speaking }) => (
   <div>
-    <motion.span
-      className="inline-block"
-      animate={{ scale: [1, 1.06, 1] }}
-      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-    >
-      <Logo size={48} className="rounded-2xl" />
-    </motion.span>
+    <div className="flex items-center gap-3">
+      <motion.span
+        className="inline-block"
+        animate={{ scale: [1, 1.06, 1] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <Logo size={48} className="rounded-2xl" />
+      </motion.span>
+      {speaking && <ThinkingOrb state="composing" size={20} theme="light" aria-label="Agnez is speaking" />}
+    </div>
     <h2 id="tour-title" className="mt-4 text-xl font-bold tracking-tight">
       {WELCOME.en.hello}{name ? `, ${name}` : ''}
     </h2>

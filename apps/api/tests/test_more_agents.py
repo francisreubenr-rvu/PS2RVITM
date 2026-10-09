@@ -13,6 +13,8 @@ class FakeAgnes:
     def __init__(self, reply):
         self.reply = reply
 
+    text_ready = True
+
     async def chat(self, messages, *, cache_kind, temperature=0.2, max_tokens=1200):
         return json.dumps(self.reply)
 
@@ -79,6 +81,13 @@ def test_owner_events_are_stored_and_validated(tmp_path):
 
 
 # ---- launch
+
+def qwen_reply(monkeypatch, reply):
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    async def answer(*args):
+        return reply
+    monkeypatch.setattr(launch, "_qwen", answer)
+
 IDEAS = {"ideas": [
     {"title": "Tiffin service", "business_type": "restaurant", "why": "Low cost.", "startup": "Rs 10,000", "first_month": "15 subscribers",
      "risks": ["FSSAI licence"], "channels": ["WhatsApp"], "items": [{"name": "Thali", "price": 110}]},
@@ -86,7 +95,8 @@ IDEAS = {"ideas": [
     {"title": "Gift boxes", "business_type": "not-a-type", "why": "Photos sell.", "items": [{"name": "Box", "price": -5}, {"name": "Card set", "price": 199}]}]}
 
 
-def test_ideas_are_trimmed_and_bad_ones_dropped(tmp_path):
+def test_ideas_are_trimmed_and_bad_ones_dropped(tmp_path, monkeypatch):
+    qwen_reply(monkeypatch, IDEAS)
     app, c = client(tmp_path, IDEAS)
     out = c.post("/launch/ideas", json={"city": "Bengaluru", "skills": ["cook"]}).json()
     assert [i["title"] for i in out["ideas"]] == ["Tiffin service", "Gift boxes"]
@@ -94,12 +104,14 @@ def test_ideas_are_trimmed_and_bad_ones_dropped(tmp_path):
     assert "not advice" in out["disclaimer"]
 
 
-def test_ideas_fail_cleanly_when_nothing_usable(tmp_path):
+def test_ideas_fail_cleanly_when_nothing_usable(tmp_path, monkeypatch):
+    qwen_reply(monkeypatch, {})
     app, c = client(tmp_path, {"ideas": [{"title": "x"}]})
     assert c.post("/launch/ideas", json={"city": "Bengaluru"}).status_code == 502
 
 
-def test_names_flag_hindi_and_kannada_as_drafts(tmp_path):
+def test_names_flag_hindi_and_kannada_as_drafts(tmp_path, monkeypatch):
+    qwen_reply(monkeypatch, {"names":["Kaapi Corner", "Brew Bandi"], "taglines":[{"en":"Warm cups.", "hi":"गरम चाय।", "kn":"ಬಿಸಿ ಕಾಫಿ."}]})
     app, c = client(tmp_path, {"names": ["Kaapi Corner", "Brew Bandi"], "taglines": [{"en": "Warm cups.", "hi": "गरम चाय।", "kn": "ಬಿಸಿ ಕಾಫಿ."}]})
     out = c.post("/launch/names", json={"idea": "Filter coffee kiosk", "city": "Bengaluru"}).json()
     assert out["names"] == ["Kaapi Corner", "Brew Bandi"] and out["needs_native_review"] == ["hi", "kn"]

@@ -55,7 +55,7 @@ def _blank_early(name: str) -> str | None:
 
 # Read the repo .env before the model names below are fixed. Real environment variables still win.
 load_env_file(ROOT / ".env")
-TEXT_MODEL = "agnes-3.0-flash"
+TEXT_MODEL = "qwen/qwen3.8-27b"
 IMAGE_MODEL = _blank_early("IMAGE_MODEL") or "agnes-image-2.5-flash"
 VIDEO_MODEL = _blank_early("VIDEO_MODEL") or "agnes-video-2.5-flash"
 

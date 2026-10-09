@@ -1,0 +1,14 @@
+import { chromium } from 'playwright';
+import { readFile,writeFile } from 'node:fs/promises';
+const output='/private/tmp/growit-acceptance';const seeded=JSON.parse(await readFile(`${output}/demo-reel.json`,'utf8'));const id=seeded.campaign_id;
+if(!seeded.asset?.id)throw new Error('Real demo reel generation did not complete.');
+const browser=await chromium.launch();const results=[];
+try{
+for(const width of [1440,390]){
+const context=await browser.newContext({viewport:{width,height:900}});await context.addInitScript(id=>{localStorage.setItem('growit-signed-in',JSON.stringify({email:'admin',name:'admin',sub:'admin',at:0}));localStorage.setItem('tour-seen:admin','1');localStorage.setItem('tour-seen:local','1');localStorage.setItem('ll-campaign',JSON.stringify({id}));},id);
+const page=await context.newPage();page.setDefaultTimeout(70000);const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});await page.goto('http://127.0.0.1:3050/?nointro#/video');
+if(width===1440){await page.getByRole('button',{name:'Refine the prompt',exact:true}).click();await page.getByRole('button',{name:'Make the video',exact:true}).waitFor();if(await page.getByRole('checkbox').isChecked())throw new Error('Motion unexpectedly enabled');await page.screenshot({path:`${output}/${width}-reel-refined.png`,fullPage:true});const response=page.waitForResponse(r=>r.url().endsWith('/video/static')&&r.request().method()==='POST');await page.getByRole('button',{name:'Make the video',exact:true}).click();const made=await response;const data=await made.json();if(!made.ok())throw new Error(JSON.stringify(data));const deadline=Date.now()+180000;for(;;){const job=await(await fetch(`http://127.0.0.1:8031/jobs/${data.job_id}`)).json();if(job.status==='failed')throw new Error(JSON.stringify(job));if(job.status==='completed')break;if(Date.now()>deadline)throw new Error('Static generation exceeded180s');await page.waitForTimeout(2000);}}
+const video=page.locator('main video').first();await video.waitFor({timeout:190000});await video.evaluate(async v=>{await v.play();});await page.waitForTimeout(1200);const state=await video.evaluate(v=>({duration:v.duration,currentTime:v.currentTime,width:v.videoWidth,height:v.videoHeight,paused:v.paused}));if(!(state.currentTime>0&&state.width===1280&&state.height===720))throw new Error(JSON.stringify(state));await video.evaluate(v=>v.pause());await page.screenshot({path:`${output}/${width}-reel-playing.png`,fullPage:true});results.push({width,id,state,errors,overflow:await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)});await context.close();
+}
+}finally{await browser.close();await writeFile(`${output}/demo-reel-ui.json`,JSON.stringify(results,null,2));}
+console.log(JSON.stringify(results));

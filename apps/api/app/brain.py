@@ -15,6 +15,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from app import extras
+from app.config import TEXT_MODEL
 from app.db import Database
 from app.media import fail
 from app.worker import parse_json_object
@@ -23,7 +24,7 @@ router = APIRouter()
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 # One model, fixed. GROQ_CHAT_MODEL wins if set; the default is the app's own reasoning model.
-GROQ_MODEL = os.environ.get("GROQ_CHAT_MODEL") or "qwen/qwen3.8-27b"
+GROQ_MODEL = TEXT_MODEL
 # The only action types the app can act on. Anything else is a bad reply, never invented.
 ACTION_TYPES = (
     "navigate",

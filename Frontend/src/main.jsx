@@ -4,6 +4,7 @@ import './index.css';
 import './campaign/campaign.css';
 import './campaign/theme.css';
 import App from './App.jsx';
+import { AgnezProvider } from './voice/agnez';
 import { StoreProvider } from './state/store';
 import { AuthProvider } from './lib/auth';
 import { applyAppearance, readAppearance } from './lib/appearance';
@@ -15,7 +16,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AuthProvider>
       <StoreProvider>
-        <App />
+        <AgnezProvider><App /></AgnezProvider>
       </StoreProvider>
     </AuthProvider>
   </StrictMode>

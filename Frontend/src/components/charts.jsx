@@ -3,7 +3,8 @@ import { useId, useMemo, useState } from 'react';
 // Small SVG charts with no chart library. Colours come from CSS variables, so they follow the owner's accent.
 // Every chart has a text summary for screen readers and a "View as a table" fold with the same numbers.
 
-export const SERIES_COLORS = ['var(--color-accent)', '#3d7be0', '#14a89a', '#e0457b', '#8b5cf6'];
+// Series reuse the calm status tones, so charts stay inside the app's reduced palette instead of adding their own hues.
+export const SERIES_COLORS = ['var(--color-accent)', 'var(--color-info)', 'var(--color-good)', 'var(--color-rose)', 'var(--color-warn)'];
 const GRID = 'rgb(28 28 31 / 0.10)';
 const AXIS = 'rgb(28 28 31 / 0.55)';
 

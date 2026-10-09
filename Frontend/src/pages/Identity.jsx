@@ -1,7 +1,9 @@
+import { OrbCursor, OrbLoader } from '../orb/orbPresence';
 import { useEffect, useState } from 'react';
-import { Check, Loader2, WandSparkles, Save } from 'lucide-react';
+import { Check, WandSparkles, Save } from 'lucide-react';
 import { CardTitle, Field, Banner } from '../components/ui';
 import ColorPicker from '../components/ColorPicker';
+import BrandLook, { DictateInput } from '../components/BrandLook';
 import { LogoMark, contrast, grade, isHex } from '../lib/brand';
 import { PALETTES, FONT_PAIRS } from '../data/studio';
 import { LANG_LABEL, businessNames, shopLangs, useBusiness } from '../lib/business';
@@ -70,7 +72,7 @@ const Identity = () => {
     }
   };
 
-  if (loading) return <p className="text-sm text-white/60" role="status">Loading</p>;
+  if (loading) return <OrbLoader kind="loading" label="Opening your saved details" className="mx-auto w-fit rounded-2xl bg-white" />;
 
   return (
     <div className="flex flex-col gap-4">
@@ -78,7 +80,7 @@ const Identity = () => {
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="card">
           <CardTitle sub="Shown on the website and every message.">Business name</CardTitle>
-          <Field label="Name"><input className="field" value={name} maxLength={80} onChange={(e) => touch(setName)(e.target.value)} /></Field>
+          <Field label="Name"><DictateInput label="the business name" value={name} maxLength={80} onChange={touch(setName)} /></Field>
           <div className="mt-5 rounded-2xl bg-ink/5 p-3">
             <p className="text-sm font-medium">Need ideas?</p>
             <p className="mb-2 text-xs text-ink/55">Tell the assistant what you sell and where. It suggests names and taglines in three languages. Suggestions only.</p>
@@ -87,7 +89,7 @@ const Identity = () => {
               <input aria-label="City" className="field" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bengaluru" />
             </div>
             <button type="button" onClick={ask} disabled={asking || idea.trim().length < 3 || city.trim().length < 2} className="btn-ghost mt-2">
-              {asking ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} Get ideas
+              {asking ? <OrbCursor active kind="writing" label="Working" /> : <WandSparkles size={14} />} Get ideas
             </button>
             {ideas?.names?.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -103,7 +105,7 @@ const Identity = () => {
           <CardTitle sub="One line per language. Hindi and Kannada drafts from the assistant need a native speaker's check.">Tagline</CardTitle>
           <div className="flex flex-col gap-3">
             {shopLangs(profile).map((l) => (
-              <Field key={l} label={LANG_LABEL[l]}><input className="field" lang={l} value={tagline[l] || ''} maxLength={120} onChange={(e) => touch(setTagline)({ ...tagline, [l]: e.target.value })} /></Field>
+              <Field key={l} label={LANG_LABEL[l]}><DictateInput lang={l} label={`the ${LANG_LABEL[l]} tagline`} value={tagline[l] || ''} maxLength={120} onChange={(v) => touch(setTagline)({ ...tagline, [l]: v })} /></Field>
             ))}
           </div>
           {ideas?.taglines?.length > 0 && (
@@ -175,9 +177,11 @@ const Identity = () => {
         </section>
       </div>
 
+      <BrandLook palette={palette} />
+
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={submit} disabled={busy || !name.trim() || !Object.values(palette).every(isHex)} className="btn-primary">
-          {busy ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save brand identity
+          {busy ? <OrbCursor active kind="writing" label="Working" /> : <Save size={16} />} Save brand identity
         </button>
         {saved && <span role="status" className="flex items-center gap-1 text-sm text-good"><Check size={14} /> {saved}</span>}
         {problem && <span role="alert" className="text-sm font-medium text-bad">{problem}</span>}

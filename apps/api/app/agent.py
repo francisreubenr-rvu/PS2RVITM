@@ -13,6 +13,8 @@ routes, so they obey exactly the same rules as the screens.
 """
 from __future__ import annotations
 
+from app.agnes import text_ready
+
 from app import languages
 
 import asyncio
@@ -442,10 +444,8 @@ def _lock(run_id: str) -> asyncio.Lock:
 
 
 def _require_key(request: Request) -> None:
-    if not request.app.state.settings.agnes_api_key:
-        from app.extras import key_override
-        if not key_override(request.app.state.db, "text"):
-            raise fail("agnes_not_configured", "Add an Agnes key in Settings or .env to run the agent.", 409)
+    if not text_ready(request.app):
+        raise fail("brain_not_configured", "Groq Qwen is off or has no server key.", 503)
 
 
 @router.post("/agent/runs")

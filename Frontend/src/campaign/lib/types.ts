@@ -38,7 +38,7 @@ export type Review = {
   issues?: string[];
 };
 
-// extra JSON per channel (PLAN.md Campaign 0 table)
+// extra JSON per channel (PLAN.md Campaign table)
 export type AssetExtra = {
   subject?: string;
   hashtags?: string[];

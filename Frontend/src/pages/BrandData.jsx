@@ -1,6 +1,8 @@
+import { OrbCursor, OrbLoader } from '../orb/orbPresence';
 import { useEffect, useState } from 'react';
-import { Check, Loader2, Plus, Trash2, Users } from 'lucide-react';
+import { Check, Plus, Trash2, Users } from 'lucide-react';
 import { CardTitle, Field, Banner } from '../components/ui';
+import BrandLook, { DictateInput, PaletteField } from '../components/BrandLook';
 import { LANG_LABEL, shopLangs, useBusiness } from '../lib/business';
 import { navigate } from '../lib/router';
 
@@ -48,6 +50,7 @@ const BrandData = () => {
       await save({
         name: form.name.trim(), phone: form.phone.trim(), address: form.address.trim(), hours: form.hours.trim(),
         ...(form.maps_url.trim() ? { maps_url: form.maps_url.trim() } : {}),
+        ...(form.palette ? { palette: form.palette } : {}),
         about: form.about, menu: form.menu.filter((m) => m.name.trim() && Number(m.price) > 0).map((m) => ({ name: m.name.trim(), price: Number(m.price) })),
       });
       setNote('Saved. The website, posters and orders use these details.');
@@ -58,7 +61,7 @@ const BrandData = () => {
     }
   };
 
-  if (loading) return <p className="text-sm text-white/60" role="status">Loading</p>;
+  if (loading) return <OrbLoader kind="loading" label="Opening your saved details" className="mx-auto w-fit rounded-2xl bg-white" />;
 
   return (
     <div className="flex flex-col gap-4">
@@ -67,7 +70,7 @@ const BrandData = () => {
         <section className="card">
           <CardTitle sub="Shown on your website and used to take orders.">Your shop</CardTitle>
           <div className="flex flex-col gap-3">
-            <Field label="Business name"><input className="field" value={form.name} onChange={(e) => set({ name: e.target.value })} maxLength={80} /></Field>
+            <Field label="Business name"><DictateInput label="the business name" value={form.name} onChange={(v) => set({ name: v })} maxLength={80} /></Field>
             <Field label="WhatsApp number for orders" hint="Customers who tap Order on WhatsApp reach this number. Include the country code if it is not an Indian number."><input className="field" inputMode="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="98450 12345" /></Field>
             <Field label="Address"><input className="field" value={form.address} onChange={(e) => set({ address: e.target.value })} maxLength={200} /></Field>
             <Field label="Map link" hint="A https:// link from Google Maps. Optional."><input className="field" value={form.maps_url} onChange={(e) => set({ maps_url: e.target.value })} placeholder="https://maps.app.goo.gl/..." /></Field>
@@ -80,7 +83,7 @@ const BrandData = () => {
           <div className="flex flex-col gap-3">
             {shopLangs(profile).map((l) => (
               <Field key={l} label={LANG_LABEL[l]}>
-                <textarea className="field min-h-20" lang={l} value={form.about[l] || ''} maxLength={400} onChange={(e) => set({ about: { ...form.about, [l]: e.target.value } })} />
+                <DictateInput multiline lang={l} label={`the ${LANG_LABEL[l]} about text`} className="field min-h-20" value={form.about[l] || ''} maxLength={400} onChange={(v) => set({ about: { ...form.about, [l]: v } })} />
               </Field>
             ))}
           </div>
@@ -109,6 +112,13 @@ const BrandData = () => {
         </div>
       </section>
 
+      <section className="card">
+        <CardTitle sub="Choose a palette or bring your own. Saved with your details and used by the website and posters.">Brand colours</CardTitle>
+        <PaletteField palette={form.palette || profile.palette} onChange={(palette) => set({ palette })} />
+      </section>
+
+      <BrandLook palette={form.palette || profile.palette} />
+
       <section className="card flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-semibold">Your customers</p>
@@ -119,7 +129,7 @@ const BrandData = () => {
 
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={submit} disabled={busy || !form.name.trim()} className="btn-primary">
-          {busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Save details
+          {busy ? <OrbCursor active kind="writing" label="Working" /> : <Check size={16} />} Save details
         </button>
         {note && <span role="status" className="text-sm text-good">{note}</span>}
         {problem && <span role="alert" className="text-sm font-medium text-bad">{problem}</span>}

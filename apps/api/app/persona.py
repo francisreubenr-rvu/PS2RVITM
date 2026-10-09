@@ -6,6 +6,8 @@ agnes-3.0-flash opinion given a persona sheet, a proxy for reaction before launc
 """
 from __future__ import annotations
 
+from app.agnes import text_ready
+
 import asyncio
 import json
 import random
@@ -304,8 +306,8 @@ def _require_campaign(db: Database, campaign_id: str) -> None:
 
 
 def _require_key(request: Request) -> None:
-    if not request.app.state.settings.agnes_api_key:
-        raise fail("agnes_not_configured", "AGNES_API_KEY is not set.", 409)
+    if not text_ready(request.app):
+        raise fail("brain_not_configured", "Groq Qwen is off or has no server key.", 503)
 
 
 @router.post("/campaign/{campaign_id}/predict")

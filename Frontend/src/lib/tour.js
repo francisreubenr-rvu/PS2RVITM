@@ -42,3 +42,7 @@ export const saveTourLang = (lang) => {
 
 // Settings uses this to replay the walkthrough.
 export const startTour = () => window.dispatchEvent(new Event(TOUR_EVENT));
+
+// Where a sign-in lands. A first-timer goes to Home, where the walkthrough opens and explains each part (its last card
+// already asks "start my first campaign" or "look around first"). Everyone who has seen it gets the entry chooser.
+export const landingFor = (user) => (hasSeenTour(tourOwner(user)) ? 'start' : 'home');

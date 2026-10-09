@@ -18,6 +18,8 @@ class PersonaAgnes:
         self.rewrites = list(rewrites)
         self.calls = []
 
+    text_ready = True
+
     async def chat(self, messages, *, cache_kind, temperature=0.2, max_tokens=1200):
         self.calls.append((cache_kind, messages))
         if cache_kind == "predict":
@@ -129,6 +131,8 @@ def test_predict_scores_and_labels(rig):
 
 def test_bad_model_output_fails_the_job_without_a_prediction(rig):
     class Broken(PersonaAgnes):
+        text_ready = True
+
         async def chat(self, messages, *, cache_kind, temperature=0.2, max_tokens=1200):
             return json.dumps({"scores": [{"persona_id": "nobody"}]})
 

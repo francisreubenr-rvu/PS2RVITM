@@ -179,3 +179,34 @@ export function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("The picture could not be exported."))), "image/png"),
   );
 }
+
+
+export function drawStaticReel(canvas: HTMLCanvasElement, image: HTMLImageElement, facts: OfferFacts, business: string, lang: string, sample: boolean) {
+  canvas.width = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("The frame could not be rendered.");
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, 1280, 720);
+  const photoWidth = 760;
+  const scale = Math.max(photoWidth / image.naturalWidth, 720 / image.naturalHeight);
+  ctx.save();
+  ctx.beginPath();ctx.rect(0,0,photoWidth,720);ctx.clip();
+  ctx.drawImage(image,(photoWidth-image.naturalWidth*scale)/2,(720-image.naturalHeight*scale)/2,image.naturalWidth*scale,image.naturalHeight*scale);
+  ctx.restore();
+  ctx.fillStyle = INK;
+  ctx.textBaseline = "top";
+  let y = 44;
+  const f = factLines(facts,lang);
+  const rows = [sample ? "SAMPLE DEMO" : "", business, f.item, f.offer, f.dates, f.timings, f.terms].filter(Boolean);
+  for (const row of rows) {
+    const fit = fitText(ctx,row,"500",SERIF,28,16,440,4);
+    if (wrap(ctx,row,440).length > 4 || fit.lines.some(line => ctx.measureText(line).width > 440)) throw new Error("Offer details do not fit. Shorten the saved details before rendering.");
+    const lineHeight = fit.size * 1.2;
+    for (const line of fit.lines) {
+      if (y + lineHeight > 690) throw new Error("Offer details do not fit. Shorten the saved details before rendering.");
+      ctx.fillText(line,800,y);y += lineHeight;
+    }
+    y += 18;
+  }
+}

@@ -1,10 +1,6 @@
 """chat: the Talk page's brain. Anything the owner says that is not a plain command gets a short, spoken-style reply.
 
-Three services can answer; the order is by speed:
-  Groq    Llama on Groq: the fastest, usually well under a second. Used when switched on in Settings.
-  Gemini  the backup, also behind its Settings switch.
-  Agnes   the project's own model, always allowed.
-If one fails or is off, the next answers. The owner's words go to the service that answers, which is why Groq and Gemini sit behind switches.
+Only Groq Qwen answers. Provider errors and disabled configuration have no fallback.
 
 What the model is told: who it is, how to talk (short, spoken, in the owner's language), what it can do in the app, and a small amount of
 the owner's own context (shop details, the notes in Memory, the approved offer of the current campaign). It is told never to invent a price,
@@ -25,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from app import business, connections, extras, languages
 from app.agnes import AgnesError
+from app.config import TEXT_MODEL
 from app.db import Database
 from app.media import fail
 from app.worker import parse_json_object
@@ -32,10 +29,8 @@ from app.worker import parse_json_object
 router = APIRouter()
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-# Model names change; the first that answers is used, and the list is tried in order. GPT-OSS 120B is the best of Groq's fast ones in Hindi and Kannada.
-GROQ_MODELS = tuple(dict.fromkeys(m for m in (os.environ.get("GROQ_CHAT_MODEL"), "openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b") if m))
-GEMINI_MODELS = tuple(dict.fromkeys(m for m in (os.environ.get("GEMINI_CHAT_MODEL"), "gemini-flash-lite-latest", "gemini-flash-latest") if m))
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+# One fixed model for all in-app text reasoning.
+GROQ_MODELS = (TEXT_MODEL,)
 MAX_TOKENS = 320
 PAGES = {
     "home": "Home", "agent": "Agent (describe an idea and let it plan)", "voice": "Talk", "launch": "Build my business", "plan": "Plan", "campaign": "Campaign",
@@ -131,27 +126,6 @@ async def _groq(system: str, history: list[dict[str, str]], client: httpx.AsyncC
     raise RuntimeError(last)
 
 
-async def _gemini(system: str, history: list[dict[str, str]], client: httpx.AsyncClient) -> tuple[str, str]:
-    payload = {"system_instruction": {"parts": [{"text": system}]},
-               "contents": [{"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]} for m in history],
-               "generationConfig": {"temperature": 0.4, "maxOutputTokens": MAX_TOKENS, "responseMimeType": "application/json"}}
-    last = ""
-    for model in GEMINI_MODELS:
-        r = await client.post(GEMINI_URL.format(model=model), headers={"x-goog-api-key": os.environ["GEMINI_API_KEY"].strip()}, json=payload)
-        if r.status_code == 200:
-            return r.json()["candidates"][0]["content"]["parts"][0]["text"], model
-        last = f"Gemini said {r.status_code}"
-        if r.status_code not in (400, 404, 503):
-            break
-    raise RuntimeError(last)
-
-
-async def _agnes(request: Request, system: str, history: list[dict[str, str]]) -> tuple[str, str]:
-    try:
-        text = await request.app.state.agnes.chat([{"role": "system", "content": system}, *history], cache_kind="talk_chat", temperature=0.4, max_tokens=MAX_TOKENS)
-    except AgnesError as exc:
-        raise RuntimeError(str(exc)[:120]) from exc
-    return text, "agnes"
 
 
 def clean(raw: str) -> dict[str, Any]:
@@ -197,33 +171,18 @@ async def talk_chat(body: ChatIn, request: Request) -> dict:
         raise fail("rate_limited", "That is a lot of messages in a minute. Wait a moment.", 429)
     system = system_prompt(db, owner, body)
     history = [{"role": m.role, "content": m.content} for m in body.messages]
-    order: list[tuple[str, Any]] = []
-    if extras.toggle_state(db, "groq")["active"]:
-        order.append(("groq", lambda c: _groq(system, history, c)))
-    if extras.toggle_state(db, "gemini")["active"]:
-        order.append(("gemini", lambda c: _gemini(system, history, c)))
-    if request.app.state.settings.agnes_api_key or extras.key_override(db, "text"):
-        order.append(("agnes", None))
-    if not order:
-        raise fail("chat_unavailable", "No chat service is switched on. Turn on Groq or Gemini in Settings, or add an Agnes key.", 503)
-    problems: list[str] = []
-    for name, call in order:
-        t0 = time.monotonic()
-        try:
-            if name == "agnes":
-                raw, model = await _agnes(request, system, history)
-            else:
-                async with httpx.AsyncClient(timeout=25) as client:
-                    raw, model = await call(client)
-        except (RuntimeError, httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-            problems.append(f"{name}: {type(exc).__name__}")
-            continue
-        out = clean(raw)
-        if not out["reply"]:
-            problems.append(f"{name}: empty")
-            continue
-        return {**out, "provider": name, "model": model, "latency_ms": int((time.monotonic() - t0) * 1000)}
-    raise fail("chat_failed", "No chat service answered just now. Try again in a moment.", 502)
+    if not extras.toggle_state(db, "groq")["active"]:
+        raise fail("chat_unavailable", "Groq Qwen is off or has no server key. Switch Groq on in Settings.", 503)
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=25) as client:
+            raw, model = await _groq(system, history, client)
+    except (RuntimeError, httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+        raise fail("chat_failed", "Groq Qwen did not answer just now. Try again in a moment.", 502) from exc
+    out = clean(raw)
+    if not out["reply"]:
+        raise fail("chat_failed", "Groq Qwen returned an empty reply.", 502)
+    return {**out, "provider": "groq", "model": model, "latency_ms": int((time.monotonic()-t0)*1000)}
 
 
 @router.get("/talk/agent")

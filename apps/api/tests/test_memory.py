@@ -161,3 +161,55 @@ def test_briefing_input_is_checked(rig):
     assert c.post("/memory/briefing", json={"facts": []}).status_code == 422
     assert c.post("/memory/briefing", json={"facts": [fact(kind="secret")]}).json()["detail"]["code"] == "bad_kind"
     assert c.post("/memory/briefing", json={"facts": [fact(object="x" * 201)]}).status_code == 422
+
+
+def test_import_splits_bullets_lines_and_json_without_saving(rig):
+    _, c = rig
+    text = "# What I know about you\n- Prefers warm, plain English\n- **Opens**: 8am to 9pm\n2. Prefers warm, plain English\n\n---\nNever mention competitors"
+    got = c.post("/memory/import/preview", json={"text": text}).json()
+    assert got["method"] == "split"
+    assert [(e["title"], e["body"]) for e in got["entries"]] == [("Prefers warm, plain English", ""), ("Opens", "8am to 9pm"), ("Never mention competitors", "")]
+    js = c.post("/memory/import/preview", json={"text": '{"memories": [{"title": "Tone", "content": "Friendly"}, "Closed on Mondays"]}'}).json()
+    assert [(e["title"], e["body"]) for e in js["entries"]] == [("Tone", "Friendly"), ("Closed on Mondays", "")]
+    assert c.get("/memory").json()["items"] == []  # a preview keeps nothing
+    assert c.post("/memory/import/preview", json={"text": "# only a heading"}).json()["detail"]["code"] == "nothing_found"
+
+
+def test_import_save_keeps_only_what_the_owner_sends_and_skips_repeats(rig):
+    _, c = rig
+    entries = [{"kind": "voice", "title": "Tone", "body": "Warm"}, {"kind": "other", "title": "Parking", "body": "Behind the shop"}]
+    assert c.post("/memory/import", json={"entries": entries}).json() == {"saved": 2, "skipped": 0}
+    assert c.post("/memory/import", json={"entries": entries}).json() == {"saved": 0, "skipped": 2}
+    items = c.get("/memory").json()["items"]
+    assert {i["title"] for i in items} == {"Tone", "Parking"} and all(i["source"] == "you" and i["status"] == "active" for i in items)
+    assert c.post("/memory/import", json={"entries": [{"kind": "bogus", "title": "x"}]}).json()["detail"]["code"] == "bad_kind"
+    assert c.post("/memory/import", json={"entries": []}).status_code == 422
+
+
+def test_tidy_uses_the_one_groq_model_and_respects_the_switch(rig, monkeypatch):
+    import httpx
+    from app import brain
+    _, c = rig
+    seen = {}
+
+    class Fake:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, **kw):
+            seen["model"] = kw["json"]["model"]
+            return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"entries": [{"title": "Opens early", "body": "From 8am."}]})}}]})
+
+    monkeypatch.setattr(brain.httpx, "AsyncClient", Fake)
+    assert c.post("/memory/import/preview", json={"text": "x", "tidy": True}).json()["detail"]["code"] == "brain_not_configured"  # no key
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    got = c.post("/memory/import/preview", json={"text": "I open at 8am, as I said.", "tidy": True}).json()
+    assert got["method"] == "model" and got["entries"][0]["title"] == "Opens early" and seen["model"] == brain.GROQ_MODEL == "qwen/qwen3.8-27b"
+    c.put("/settings/toggles/groq", json={"enabled": False})
+    assert c.post("/memory/import/preview", json={"text": "x", "tidy": True}).status_code == 503

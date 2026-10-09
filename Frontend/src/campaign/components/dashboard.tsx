@@ -5,6 +5,7 @@ import type { Route } from "../lib/route";
 import type { Forecast } from "../lib/types";
 import type { Dashboard } from "../lib/types";
 import { Badge, Button, Empty, ErrorNote, Fold } from "./ui";
+import { OrbLoader } from "../../orb/orbPresence";
 
 const HOUR = 3600_000;
 
@@ -316,7 +317,7 @@ function PanelSection({ id }: { id: string }) {
       <p className="muted small">Four reviewers read each asset on their own: facts (code against your locked offer), meaning (back-translation), tone and risky claims. A code referee shows only what needs a human. A concern from a model counts only if it quotes words that are really in the copy.</p>
       <div className="row wrap"><Button onClick={run} disabled={busy || items.length === 0}>{busy ? "Starting" : items.some((i) => i.reviewed) ? "Review again" : "Run the panel"}</Button></div>
       {msg ? <p className="note" role="status">{msg}</p> : null}
-      {items.length === 0 ? <Empty title="No written assets yet">Write Campaign 0 first.</Empty> : (
+      {items.length === 0 ? <Empty title="No written assets yet">Write Campaign first.</Empty> : (
         <div className="tbl-wrap">
           <table className="tbl">
             <thead><tr><th>Asset</th><th>Referee</th><th>Reviewers</th></tr></thead>
@@ -389,7 +390,7 @@ export function DashboardView({ id, go, onBusiness }: { id: string; go: (r: Rout
     }
   }
 
-  if (!data) return <div className="page">{fatal ? <ErrorNote onRetry={load}>{error}</ErrorNote> : <p className="muted">Loading the dashboard.</p>}</div>;
+  if (!data) return <div className="page">{fatal ? <ErrorNote onRetry={load}>{error}</ErrorNote> : <OrbLoader kind="loading" label="Loading the dashboard" className="mx-auto w-fit rounded-2xl bg-white" />}</div>;
   const t = data.totals;
   const q = data.quality;
   const pred = data.predictions;
@@ -402,7 +403,7 @@ export function DashboardView({ id, go, onBusiness }: { id: string; go: (r: Rout
           <h1 className="display-sm">What happened after you sent it</h1>
           <p className="muted small">Real events from this app only. Updated {updated}.</p>
         </div>
-        <Button onClick={() => go({ name: "campaign", id })}>Back to Campaign 0</Button>
+        <Button onClick={() => go({ name: "campaign", id })}>Back to Campaign</Button>
       </header>
       {error ? <ErrorNote onRetry={load}>{error}</ErrorNote> : null}
 

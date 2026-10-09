@@ -35,7 +35,7 @@ async def conversation_token() -> str:
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(TOKEN_URL, params={"agent_id": elevenlabs.agent_id()}, headers={"xi-api-key": elevenlabs.api_key()})
     if response.status_code >= 400:
-        raise elevenlabs.ElevenLabsError("elevenlabs_failed", f"ElevenLabs said {response.status_code} while minting a token.")
+        raise elevenlabs._fail(response, "minting a token")
     try:
         token = response.json()["token"]
     except (KeyError, TypeError, ValueError) as exc:
@@ -54,5 +54,13 @@ async def voice_token(request: Request) -> dict[str, Any]:
     try:
         token = await conversation_token()
     except elevenlabs.ElevenLabsError as exc:
-        raise fail("voice_provider_error", str(exc), 502) from exc
+        raise fail("voice_provider_error", str(exc), exc.status) from exc
     return {"conversation_token": token}
+
+
+@router.get("/voice/status")
+def voice_status(request: Request) -> dict[str, Any]:
+    """Configuration only. Checking a microphone does not mint a provider session."""
+    connections._require_owner(request)
+    available = bool(extras.toggle_state(request.app.state.db, "elevenlabs")["active"] and _configured())
+    return {"available": available, "reason": None if available else "not_configured"}

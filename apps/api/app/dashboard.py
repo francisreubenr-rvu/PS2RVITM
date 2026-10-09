@@ -141,6 +141,20 @@ def _quality(db: Database, campaign_id: str) -> dict[str, int]:
     }
 
 
+def _geography(db: Database, campaign_id: str) -> dict[str, Any]:
+    """The place the campaign is for, read from the plan. This app never measures where reach comes from, so this
+    is the real place anchor only: the Insights screen splits its sample reach across bands that centre on it."""
+    data = plan.get_plan(db, campaign_id) or {}
+    area = str((data.get("business") or {}).get("area") or "").strip() or None
+    parts = [part.strip() for part in area.split(",")] if area else []
+    return {
+        "area": area,
+        "locality": parts[0] if parts else None,
+        "city": parts[-1] if len(parts) > 1 else None,
+        "measured": False,
+    }
+
+
 def _predictions(db: Database, campaign_id: str) -> dict[str, Any] | None:
     items = []
     for payload in persona.predictions_for_campaign(db, campaign_id).values():
@@ -198,6 +212,7 @@ def campaign_dashboard(campaign_id: str, request: Request) -> dict:
 
     return {
         "totals": totals_for(db, campaign_id),
+        "geography": _geography(db, campaign_id),
         "funnel": [{"stage": stage, "count": count} for stage, count in zip(FUNNEL, stage_counts)],
         "by_channel": sorted(by_channel.values(), key=lambda row: row["channel"]),
         "by_language": sorted(by_language.values(), key=lambda row: row["lang"]),

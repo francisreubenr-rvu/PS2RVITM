@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Gauge, Bot, Brain, Cog, UserRound, Check, Loader2, CircleAlert, SkipForward, ArrowRight, Mic, Square, ChevronDown } from 'lucide-react';
+import { Gauge, Bot, Brain, Cog, UserRound, Check, CircleAlert, SkipForward, ArrowRight, Mic, Square, ChevronDown } from 'lucide-react';
 import { createAgentRun, tickAgentRun, listAgentRuns, confirmAgentStep, skipAgentStep, runAutopilot, orchestrate } from '../campaign/lib/api';
 import { runActions } from '../campaign/lib/orchestrate';
 import { LANGS, FIELD_LABEL } from '../campaign/lib/format';
 import { useVoiceInput } from '../campaign/lib/voice';
 import { go, setCurrent, useCurrent } from '../campaign/lib/current';
 import { navigate, useRoute } from '../lib/router';
+import ThinkingOrb, { OrbCursor, OrbLoader, OrbOverlay } from '../orb/orbPresence';
 
 const KEY = 'll-agent-run';
 const EXAMPLE =
@@ -26,8 +27,18 @@ const STATE = {
   failed: { label: 'Stopped', ring: 'border-bad bg-white text-ink', dot: 'bg-bad' },
 };
 const StateIcon = ({ s }) =>
-  s === 'done' ? <Check size={14} /> : s === 'running' ? <Loader2 size={14} className="animate-spin" /> : s === 'needs_you' ? <UserRound size={14} /> : s === 'failed' ? <CircleAlert size={14} /> : s === 'skipped' ? <SkipForward size={14} /> : <span className="size-2 rounded-full bg-current opacity-40" />;
+  s === 'done' ? <Check size={14} /> : s === 'running' ? <ThinkingOrb state="working" size={20} /> : s === 'needs_you' ? <UserRound size={14} /> : s === 'failed' ? <CircleAlert size={14} /> : s === 'skipped' ? <SkipForward size={14} /> : <span className="size-2 rounded-full bg-current opacity-40" />;
 
+// A one-line fold, so every non-primary control stays out of the way until it is asked for.
+const Fold = ({ label, open, onToggle, children }) => (
+  <div>
+    <button type="button" aria-expanded={open} onClick={onToggle} className="flex w-full items-center justify-between gap-2 rounded-full bg-ink/5 px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-ink/10">
+      <span>{label}</span>
+      <ChevronDown size={15} className={`shrink-0 text-ink/45 ${open ? 'rotate-180' : ''}`} />
+    </button>
+    {open && <div className="mt-3">{children}</div>}
+  </div>
+);
 
 const AUTO_CHANNELS = [{ id: 'whatsapp', label: 'WhatsApp' }, { id: 'poster', label: 'Poster' }, { id: 'instagram_post', label: 'Instagram post' }, { id: 'instagram_story', label: 'Instagram story' }];
 const AUTO_LANGS = LANGS.map((l) => ({ id: l.code, label: l.draft ? `${l.name} (draft)` : l.name }));
@@ -56,9 +67,9 @@ const Autopilot = ({ onUse }) => {
     }
   };
   return (
-    <div className="mt-4 rounded-2xl border border-ink/10 p-4">
+    <div className="rounded-xl border border-ink/10 p-3">
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex items-center gap-2 text-sm font-semibold">
-        <Gauge size={16} className="text-accent-deep" /> Pick channels and languages for my budget
+        <Gauge size={16} className="text-ink/60" /> Pick channels and languages for my budget
         <ChevronDown size={14} className={open ? 'rotate-180' : ''} />
       </button>
       {open && (
@@ -75,7 +86,8 @@ const Autopilot = ({ onUse }) => {
           <div className="flex flex-wrap gap-2" role="group" aria-label="Languages to consider">
             {AUTO_LANGS.map((c) => <button key={c.id} type="button" aria-pressed={langs.includes(c.id)} onClick={() => toggle(langs, setLangs, c.id)} className={langs.includes(c.id) ? 'btn-dark h-8 px-3 text-xs' : 'btn-ghost h-8 px-3 text-xs'}>{c.label}</button>)}
           </div>
-          <button type="button" disabled={busy || !channels.length || !langs.length} onClick={go_} className="btn-primary w-fit">{busy ? <Loader2 size={15} className="animate-spin" /> : <Gauge size={15} />} Work it out</button>
+          <button type="button" disabled={busy || !channels.length || !langs.length} onClick={go_} className="btn-dark w-fit">{busy ? <span className="rounded-full bg-white"><OrbCursor active kind="solving" label="Working out the plan" /></span> : <Gauge size={15} />} Work it out</button>
+          {busy && <OrbLoader kind="solving" label="Solving your limits" />}
           {error && <p role="alert" className="text-sm text-bad">{error}</p>}
           {out && !out.feasible && <p role="status" className="text-sm text-bad">{out.message}</p>}
           {out?.feasible && (
@@ -163,29 +175,31 @@ const Step = ({ s, runId, onChange, busy }) => {
   );
 };
 
-const Brief = ({ brief }) => {
+// The facts it quoted, kept folded: reference, not an action.
+const Brief = ({ brief, open, onToggle }) => {
   if (!brief) return null;
   const entries = Object.entries(brief.fields).filter(([k]) => !k.startsWith('_'));
   return (
     <section className="card">
-      <h2 className="font-semibold">What it took from your words</h2>
-      <p className="mt-1 text-xs text-ink/55">Every value is an exact phrase you said. Anything it could not quote was thrown away{brief.dropped.length ? ` (${brief.dropped.map((d) => FIELD_LABEL[d] || d).join(', ')})` : ''}.</p>
-      <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-        {entries.map(([k, v]) => (
-          <div key={k} className="rounded-xl bg-ink/5 px-3 py-2">
-            <dt className="text-[11px] font-medium text-ink/50">{FIELD_LABEL[k] || k}</dt>
-            <dd className="text-sm font-semibold">“{v}”</dd>
-          </div>
-        ))}
-        {entries.length === 0 && <p className="text-sm text-ink/55">Nothing quotable yet. It will ask you the questions.</p>}
-      </dl>
+      <Fold label="What it took from your words" open={open} onToggle={onToggle}>
+        <p className="text-xs text-ink/55">Every value is an exact phrase you said. Anything it could not quote was thrown away{brief.dropped.length ? ` (${brief.dropped.map((d) => FIELD_LABEL[d] || d).join(', ')})` : ''}.</p>
+        <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+          {entries.map(([k, v]) => (
+            <div key={k} className="rounded-xl bg-ink/5 px-3 py-2">
+              <dt className="text-[11px] font-medium text-ink/50">{FIELD_LABEL[k] || k}</dt>
+              <dd className="text-sm font-semibold">“{v}”</dd>
+            </div>
+          ))}
+          {entries.length === 0 && <p className="text-sm text-ink/55">Nothing quotable yet. It will ask you the questions.</p>}
+        </dl>
+      </Fold>
     </section>
   );
 };
 
 const Banner = ({ run }) => {
   const m = {
-    working: { cls: 'bg-info/12 text-ink', icon: <Loader2 size={16} className="animate-spin text-info" />, text: 'The agent is working. This page updates by itself.' },
+    working: { cls: 'bg-info/12 text-ink', icon: <ThinkingOrb state="working" size={20} />, text: 'The agent is working. This page updates by itself.' },
     needs_you: { cls: 'bg-accent-soft text-ink', icon: <UserRound size={16} className="text-accent-deep" />, text: run.next ? run.next.message : 'It needs you.' },
     done: { cls: 'bg-good/12 text-ink', icon: <Check size={16} className="text-good" />, text: 'Every step is finished.' },
     failed: { cls: 'bg-bad/12 text-ink', icon: <CircleAlert size={16} className="text-bad" />, text: 'A step stopped. Read it below, fix it, and the agent carries on.' },
@@ -227,8 +241,8 @@ const Tell = ({ campaignId }) => {
   const done = (results || []).filter((r) => r.ok);
   const failed = (results || []).filter((r) => !r.ok);
   return (
-    <section className="card" aria-label="Tell me what to do">
-      <h2 className="font-semibold">Tell me what to do</h2>
+    <div aria-label="Tell Agnez what to do">
+      <h3 className="font-semibold">Tell Agnez what to do</h3>
       <p className="mt-1 text-sm text-ink/60">Say or type a step: “lock the plan”, “write the campaign”, “open the dashboard”. Agnez answers and the app does it with the buttons it already has, still stopping at the steps that need you.</p>
       <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Tell Agnez what to do">
         <input
@@ -240,15 +254,17 @@ const Tell = ({ campaignId }) => {
           placeholder="Lock the plan, then write the campaign"
           className="field h-10 min-w-[12rem] flex-1"
         />
-        <button type="button" disabled={busy || !text.trim()} onClick={ask} className="btn-primary">
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <Bot size={15} />} Do it
+        <button type="button" disabled={busy || !text.trim()} onClick={ask} className="btn-dark">
+          {busy ? <span className="rounded-full bg-white"><OrbCursor active kind="thinking" label="Agnez is thinking" /></span> : <Bot size={15} />} Do it
         </button>
         {mic.supported && (
           <button type="button" onClick={() => (mic.listening ? mic.stop() : mic.start())} aria-pressed={mic.listening} disabled={mic.transcribing} className="btn-ghost">
             {mic.listening ? <Square size={14} /> : <Mic size={15} />} {mic.listening ? 'Stop' : mic.transcribing ? 'Transcribing' : 'Speak it'}
+            <OrbCursor active={mic.listening || mic.transcribing} kind={mic.listening ? 'listening' : 'writing'} />
           </button>
         )}
       </div>
+      {busy && <OrbLoader kind="thinking" size={20} label="Agnez is working out what to do" className="flex-row" style={{ padding: 0, marginTop: '0.75rem' }} />}
       {mic.note && <p className="mt-2 text-xs text-ink/55">{mic.note}</p>}
       {say && <p className="mt-3 text-sm text-ink/75"><span className="font-semibold">Agnez:</span> {say}</p>}
       {results && <p role="status" className="mt-1 text-sm text-ink/60">{done.length ? `Ran: ${done.map((r) => r.detail).join('; ')}.` : 'Nothing to run.'}{failed.length ? ` ${failed.length} could not run.` : ''}</p>}
@@ -259,11 +275,13 @@ const Tell = ({ campaignId }) => {
       )}
       {mic.error && <p role="alert" className="mt-2 text-sm text-bad">{mic.error}</p>}
       {error && <p role="alert" className="mt-2 text-sm text-bad">{error}</p>}
-    </section>
+    </div>
   );
 };
 
 // S20: describe the idea once, watch the workflow the agent builds, and step in only at the gates.
+// One primary action per view: plan the work when there is no run, the gate button when there is one.
+// Everything else (the orchestrate bar, the autopilot, past runs, the quoted facts) waits under a fold.
 const Agent = () => {
   const [idea, setIdea] = useState('');
   const [lang, setLang] = useState('en');
@@ -271,6 +289,9 @@ const Agent = () => {
   const [runs, setRuns] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [more, setMore] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const alive = useRef(true);
   const cur = useCurrent();
 
@@ -295,7 +316,10 @@ const Agent = () => {
     } catch {
       // ignore
     }
-    if (saved) tickAgentRun(saved).then((v) => alive.current && setRun(v)).catch(() => undefined);
+    if (saved) {
+      setResuming(true);
+      tickAgentRun(saved).then((v) => alive.current && setRun(v)).catch(() => undefined).finally(() => alive.current && setResuming(false));
+    }
     return () => {
       alive.current = false;
     };
@@ -348,8 +372,10 @@ const Agent = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      <Tell campaignId={run?.campaign_id || cur.id} />
-      {!run && (
+      <OrbOverlay show={busy} kind="thinking" label={run ? 'Updating the workflow' : 'Planning the work'} />
+      {resuming && !run && <OrbLoader kind="loading" label="Picking up your last run" />}
+      {!run ? (
+        // The one primary action: describe the idea and let the agent plan the work.
         <section className="card">
           <h2 className="font-semibold">Describe your idea</h2>
           <p className="mt-1 text-sm text-ink/60">Say or type it the way you would tell a friend: the business, the offer, who it is for, where to promote it. The agent plans the work, does what it can, and stops to ask you only where it must.</p>
@@ -369,35 +395,21 @@ const Agent = () => {
           />
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button type="button" disabled={busy || idea.trim().length < 8} onClick={start} className="btn-primary">
-              {busy ? <Loader2 size={15} className="animate-spin" /> : <Bot size={15} />} Plan the work
+              {busy ? <OrbCursor active kind="thinking" label="Planning the work" /> : <Bot size={15} />} Plan the work
             </button>
             {mic.supported && (
               <button type="button" onClick={() => (mic.listening ? mic.stop() : mic.start())} aria-pressed={mic.listening} disabled={mic.transcribing} className="btn-ghost">
                 {mic.listening ? <Square size={14} /> : <Mic size={15} />} {mic.listening ? 'Stop' : mic.transcribing ? 'Transcribing' : 'Speak it'}
+                <OrbCursor active={mic.listening || mic.transcribing} kind={mic.listening ? 'listening' : 'writing'} />
               </button>
             )}
             <button type="button" onClick={() => setIdea(EXAMPLE)} className="text-sm text-ink/55 underline hover:text-ink">Use an example</button>
           </div>
           {mic.note && <p className="mt-2 text-xs text-ink/55">{mic.note}</p>}
           {mic.error && <p role="alert" className="mt-2 text-sm text-bad">{mic.error}</p>}
-          <Autopilot onUse={(sentence) => setIdea((cur) => `${cur} ${sentence}`.trim())} />
           {error && <p role="alert" className="mt-2 text-sm text-bad">{error}</p>}
-          {runs.length > 0 && (
-            <div className="mt-5">
-              <p className="text-xs font-medium text-ink/50">Earlier runs</p>
-              <ul className="mt-1 flex flex-col gap-1">
-                {runs.slice(0, 4).map((r) => (
-                  <li key={r.id}>
-                    <button type="button" onClick={() => act(() => tickAgentRun(r.id))} className="w-full truncate rounded-lg bg-ink/5 px-3 py-2 text-left text-sm hover:bg-ink/10">{r.idea}</button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </section>
-      )}
-
-      {run && (
+      ) : (
         <>
           <Banner run={run} />
           <section className="card">
@@ -417,9 +429,31 @@ const Agent = () => {
               <Step key={s.id} s={s} runId={run.id} busy={busy} onChange={act} />
             ))}
           </ol>
-          <Brief brief={run.brief} />
+          <Brief brief={run.brief} open={briefOpen} onToggle={() => setBriefOpen(!briefOpen)} />
         </>
       )}
+
+      {/* Everything that is not the first action, behind one fold. */}
+      <section className="card">
+        <Fold label="More options" open={more} onToggle={() => setMore(!more)}>
+          <div className="flex flex-col gap-5">
+            <Tell campaignId={run?.campaign_id || cur.id} />
+            {!run && <Autopilot onUse={(sentence) => setIdea((cur) => `${cur} ${sentence}`.trim())} />}
+            {runs.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold">Earlier runs</h3>
+                <ul className="mt-2 flex flex-col gap-1">
+                  {runs.slice(0, 4).map((r) => (
+                    <li key={r.id}>
+                      <button type="button" onClick={() => act(() => tickAgentRun(r.id))} className="w-full truncate rounded-lg bg-ink/5 px-3 py-2 text-left text-sm hover:bg-ink/10">{r.idea}</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Fold>
+      </section>
     </div>
   );
 };

@@ -1,0 +1,216 @@
+{
+ "clips": {
+  "en/new": {
+   "sha": "75e0a26f76ff",
+   "chars": 63,
+   "bytes": 32017
+  },
+  "kn/new": {
+   "sha": "47fbe1875640",
+   "chars": 67,
+   "bytes": 39541
+  },
+  "hi/new": {
+   "sha": "0ed96e024773",
+   "chars": 52,
+   "bytes": 34525
+  },
+  "en/welcome": {
+   "sha": "c3bb10d7eba0",
+   "chars": 139,
+   "bytes": 78620
+  },
+  "en/sidebar": {
+   "sha": "2b75a533ac5b",
+   "chars": 103,
+   "bytes": 59394
+  },
+  "en/start": {
+   "sha": "0a575322a2e6",
+   "chars": 134,
+   "bytes": 67126
+  },
+  "en/talk": {
+   "sha": "b3c8938b70f3",
+   "chars": 85,
+   "bytes": 53751
+  },
+  "en/plan": {
+   "sha": "f718bd459a23",
+   "chars": 121,
+   "bytes": 70888
+  },
+  "en/campaign": {
+   "sha": "115e2eb0b4bb",
+   "chars": 123,
+   "bytes": 68380
+  },
+  "en/dashboard": {
+   "sha": "ee79504796b8",
+   "chars": 132,
+   "bytes": 75485
+  },
+  "en/mic": {
+   "sha": "1bf611f840f9",
+   "chars": 181,
+   "bytes": 99727
+  },
+  "en/summary": {
+   "sha": "09714db9d2c1",
+   "chars": 76,
+   "bytes": 40168
+  },
+  "en/notifications": {
+   "sha": "c67c08728903",
+   "chars": 122,
+   "bytes": 62737
+  },
+  "en/memory": {
+   "sha": "b885c52ce70d",
+   "chars": 117,
+   "bytes": 64618
+  },
+  "en/settings": {
+   "sha": "6e650f13eca7",
+   "chars": 133,
+   "bytes": 61901
+  },
+  "en/done": {
+   "sha": "dabee9d8b6a6",
+   "chars": 89,
+   "bytes": 43511
+  },
+  "kn/welcome": {
+   "sha": "9ff0d0b3b469",
+   "chars": 144,
+   "bytes": 97219
+  },
+  "kn/sidebar": {
+   "sha": "aec898405c28",
+   "chars": 108,
+   "bytes": 69634
+  },
+  "kn/start": {
+   "sha": "186b90040667",
+   "chars": 137,
+   "bytes": 78620
+  },
+  "kn/talk": {
+   "sha": "c416df86078c",
+   "chars": 103,
+   "bytes": 65872
+  },
+  "kn/plan": {
+   "sha": "399c34876340",
+   "chars": 137,
+   "bytes": 92621
+  },
+  "kn/campaign": {
+   "sha": "e9b5a2fc8e33",
+   "chars": 162,
+   "bytes": 101608
+  },
+  "kn/dashboard": {
+   "sha": "1b109822baac",
+   "chars": 144,
+   "bytes": 91995
+  },
+  "kn/mic": {
+   "sha": "eee8ba8eba86",
+   "chars": 206,
+   "bytes": 127939
+  },
+  "kn/summary": {
+   "sha": "4d1e26a23cfe",
+   "chars": 96,
+   "bytes": 57513
+  },
+  "kn/notifications": {
+   "sha": "b382d487f6a7",
+   "chars": 137,
+   "bytes": 88860
+  },
+  "kn/memory": {
+   "sha": "bf5225bbd777",
+   "chars": 129,
+   "bytes": 80501
+  },
+  "kn/settings": {
+   "sha": "1b965e10f551",
+   "chars": 127,
+   "bytes": 74858
+  },
+  "kn/done": {
+   "sha": "72668896fcc9",
+   "chars": 101,
+   "bytes": 63364
+  },
+  "hi/welcome": {
+   "sha": "12aa84345989",
+   "chars": 143,
+   "bytes": 95338
+  },
+  "hi/sidebar": {
+   "sha": "5d752f0d94cc",
+   "chars": 94,
+   "bytes": 65872
+  },
+  "hi/start": {
+   "sha": "2c9226abc408",
+   "chars": 122,
+   "bytes": 78620
+  },
+  "hi/talk": {
+   "sha": "5f129bb89346",
+   "chars": 89,
+   "bytes": 65872
+  },
+  "hi/plan": {
+   "sha": "5ec8973fcdcd",
+   "chars": 125,
+   "bytes": 82381
+  },
+  "hi/campaign": {
+   "sha": "4b9ff72e17ce",
+   "chars": 135,
+   "bytes": 89487
+  },
+  "hi/dashboard": {
+   "sha": "3791935c7420",
+   "chars": 121,
+   "bytes": 85725
+  },
+  "hi/mic": {
+   "sha": "aa77b4189618",
+   "chars": 167,
+   "bytes": 110594
+  },
+  "hi/summary": {
+   "sha": "3861a8faadbc",
+   "chars": 78,
+   "bytes": 52497
+  },
+  "hi/notifications": {
+   "sha": "dc83251cd0fb",
+   "chars": 111,
+   "bytes": 76739
+  },
+  "hi/memory": {
+   "sha": "98fe0fcca4df",
+   "chars": 129,
+   "bytes": 80501
+  },
+  "hi/settings": {
+   "sha": "c7048ec7a782",
+   "chars": 122,
+   "bytes": 70888
+  },
+  "hi/done": {
+   "sha": "94b31ae8c8d3",
+   "chars": 83,
+   "bytes": 55632
+  }
+ },
+ "voice_id": "oO7sLA3dWfQXsKeSAjpA",
+ "model": "eleven_v4"
+}

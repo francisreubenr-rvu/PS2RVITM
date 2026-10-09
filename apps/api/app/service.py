@@ -137,7 +137,7 @@ class Service:
     ) -> dict[str, Any]:
         status = "queued" if has_key else "waiting_for_key"
         if not has_key:
-            detail = "AGNES_API_KEY is not set. Asset slot is waiting."
+            detail = "Groq Qwen is off or has no key. Text generation is waiting." if kind in ("copy", "brief", "review", "review2", "review3") else "AGNES_API_KEY is not set. Asset slot is waiting."
         job = {
             "id": uuid.uuid4().hex,
             "campaign_id": asset["campaign_id"],

@@ -3,6 +3,7 @@ import json
 
 from app import plan, reply
 from app.schemas import OfferFacts
+from app.service import now
 from tests.b_helpers import make_client, seed
 
 FACTS = OfferFacts(item="filter coffee", discount_percent=20, timings="Saturday and Sunday, 8 am to 11 am",
@@ -52,6 +53,8 @@ class FakeAgnes:
     def __init__(self, text):
         self.text, self.calls = text, 0
 
+    text_ready = True
+
     async def chat(self, messages, *, cache_kind, temperature=0.2, max_tokens=1200):
         self.calls += 1
         return self.text
@@ -97,3 +100,52 @@ def test_string_true_from_the_model_is_accepted():
     out = reply.decide("how much off?", answer(answerable="true"), FACTS, PACKET)
     assert out["status"] == "drafted"
     assert reply.decide("how much off?", answer(answerable="no"), FACTS, PACKET)["status"] == "escalated"
+
+
+def _demo_campaign(app, cid="demo-abc123"):
+    app.state.db.campaign_insert({"id": cid, "brand_voice": None, "status": "facts_locked",
+                                  "transcript": "sample", "suggestion": None, "created_at": now()})
+    return cid
+
+
+def test_demo_replies_render_in_several_states_and_are_marked_sample(tmp_path):
+    app, c = make_client(tmp_path, FakeAgnes(answer()))
+    cid = _demo_campaign(app)
+    written = reply.seed_demo_replies(app.state.db, cid)
+    assert written == len(reply.DEMO_REPLIES)
+    rows = c.get(f"/campaign/{cid}/replies").json()["replies"]
+    assert len(rows) == written
+    assert all(r["demo"] is True for r in rows)
+    # Every state the screen can draw is present: a draft to edit, an escalation to answer, an approved text to copy.
+    assert {"drafted", "escalated", "approved"} <= {r["status"] for r in rows}
+    assert any(r["holding"] for r in rows)  # the escalation carries a holding reply
+
+
+def test_demo_seed_can_be_cleared_again(tmp_path):
+    app, c = make_client(tmp_path, FakeAgnes(answer()))
+    cid = _demo_campaign(app)
+    count = reply.seed_demo_replies(app.state.db, cid)
+    assert reply.seed_demo_replies(app.state.db, cid) == count  # running twice replaces, never piles up
+    assert reply.clear_demo_replies(app.state.db, cid) == count
+    assert c.get(f"/campaign/{cid}/replies").json()["replies"] == []
+
+
+def test_replies_from_a_real_campaign_are_not_marked_sample(tmp_path):
+    app, c = make_client(tmp_path, FakeAgnes(answer()))
+    cid = _demo_campaign(app, cid="a-real-campaign")
+    reply.seed_demo_replies(app.state.db, cid)
+    rows = c.get(f"/campaign/{cid}/replies").json()["replies"]
+    assert rows and all(r["demo"] is False for r in rows)
+
+
+def test_demo_replies_are_scoped_to_each_campaign(tmp_path):
+    app, c = make_client(tmp_path, FakeAgnes(answer()))
+    first = _demo_campaign(app, "demo-first")
+    second = _demo_campaign(app, "demo-second")
+    count = reply.seed_demo_replies(app.state.db, first)
+    assert reply.seed_demo_replies(app.state.db, second) == count
+    before = c.get(f"/campaign/{second}/replies").json()["replies"]
+    assert len(before) == count
+    assert reply.seed_demo_replies(app.state.db, first) == count
+    assert reply.clear_demo_replies(app.state.db, first) == count
+    assert c.get(f"/campaign/{second}/replies").json()["replies"] == before

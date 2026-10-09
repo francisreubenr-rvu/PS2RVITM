@@ -55,7 +55,7 @@ export async function runActions(
       case "generate_campaign":
         await attempt("generate_campaign", async () => {
           await generate(need());
-          return "Campaign 0 written";
+          return "Campaign written";
         });
         break;
       case "apply_change":

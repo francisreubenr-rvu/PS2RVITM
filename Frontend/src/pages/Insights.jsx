@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Eye, Heart, Ticket, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { BarChart, ChartCard, Donut, FunnelChart, Heatmap, Histogram, LineChart, bin } from '../components/charts';
 import { buildInsights } from '../data/insightsMock';
-import { api, getLearning } from '../campaign/lib/api';
+import { api, getDashboard, getLearning } from '../campaign/lib/api';
 import { useCurrent } from '../campaign/lib/current';
 import { navigate } from '../lib/router';
 import Suggestions from '../components/Suggestions';
+import { OrbLoader } from '../orb/orbPresence';
 
 const Kpi = ({ icon: Icon, label, value, note }) => (
   <article className="rounded-2xl bg-white p-4 text-ink">
@@ -20,7 +21,20 @@ const Kpi = ({ icon: Icon, label, value, note }) => (
 
 const n = (v) => Math.round(v).toLocaleString('en-IN');
 const pct = (v) => `${(v * 100).toFixed(1)}%`;
+const round100 = (v) => Math.round(v / 100) * 100;
 const VERDICT = { within: ['As forecast', 'bg-good/12 text-good'], above: ['Better than forecast', 'bg-good/12 text-good'], below: ['Below forecast', 'bg-warn/15 text-warn'], no_forecast: ['No forecast to compare', 'bg-ink/8 text-ink/60'] };
+
+// Sample split of the people reached across the bands around the shop. The band names centre on the real area from
+// the plan; the split itself is sample data, like every reach chart on this screen. Instagram does not give the app
+// where reach came from, so this cannot be measured.
+const AREA_SHARE = [56, 28, 16];
+const bandsFor = (geo) => {
+  const locality = geo?.locality;
+  const city = geo?.city;
+  if (locality && city && locality.toLowerCase() !== city.toLowerCase()) return [`In ${locality}`, `Rest of ${city}`, `Beyond ${city}`];
+  if (geo?.area) return [`In ${geo.area}`, 'Rest of your area', 'Beyond your area'];
+  return ['Near your shop', 'Rest of your area', 'Beyond your area'];
+};
 
 // One row: the forecast range as a band, and what really happened as a marker on the same scale.
 const RangeRow = ({ item, max }) => {
@@ -67,6 +81,7 @@ const Results = () => {
       sub="The band is the range the forecast gave before the campaign. The dot is what you entered afterwards."
     >
       {error && <p role="alert" className="text-sm text-bad">{error}</p>}
+      {!data && !error && <OrbLoader kind="loading" size={64} label="Reading your results" />}
       {data && items.length === 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-ink/15 p-4 text-sm">
           <span>No results entered for this campaign yet. Add how many people each post reached and how many redeemed, and the forecast learns from it.</span>
@@ -92,19 +107,34 @@ const Results = () => {
 // The strip at the top and the "recent posts" chart are live, and only appear once an Instagram account is connected.
 const Insights = () => {
   const d = useMemo(buildInsights, []);
+  const cur = useCurrent();
   const [ig, setIg] = useState(null);
+  const [igDone, setIgDone] = useState(false);
+  const [geo, setGeo] = useState(null);
 
   useEffect(() => {
     let live = true;
     api('/connections')
       .then((r) => live && setIg(r.connections.find((c) => c.provider === 'instagram' && c.connected) || null))
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => live && setIgDone(true));
     return () => {
       live = false;
     };
   }, []);
 
+  // The real area for this campaign, so the bands name the owner's own place. Reach by area is not measured.
+  useEffect(() => {
+    if (!cur.id) return undefined;
+    let live = true;
+    getDashboard(cur.id).then((b) => live && setGeo(b.geography ?? null)).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [cur.id]);
+
   const bins = useMemo(() => bin(d.posts.map((p) => p.reach), 10), [d]);
+  const areaBands = useMemo(() => bandsFor(geo).map((label, i) => ({ label, value: AREA_SHARE[i] })), [geo]);
   const mediaBars = (ig?.media ?? []).slice().reverse().map((m, i) => ({ label: `#${i + 1}`, value: (m.likes ?? 0) + (m.comments ?? 0) }));
 
   return (
@@ -123,6 +153,8 @@ const Insights = () => {
             {ig.profile.insights && <p className="text-sm text-ink/60">Last {ig.profile.insights.window_days} days: {n(ig.profile.insights.reach ?? 0)} reached, {n(ig.profile.insights.profile_views ?? 0)} profile views, {n(ig.profile.insights.accounts_engaged ?? 0)} accounts engaged</p>}
           </div>
         </section>
+      ) : !igDone ? (
+        <OrbLoader kind="searching" size={20} label="Checking your Instagram" className="w-fit flex-row rounded-full bg-white" style={{ padding: '0.25rem 0.75rem' }} />
       ) : (
         <button type="button" onClick={() => navigate('connections')} className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-white/25 px-4 py-3 text-left text-sm text-white/80 hover:border-accent hover:text-white">
           <span>Link your Instagram on <strong>Connections</strong> to see your real followers and recent posts here.</span>
@@ -194,6 +226,14 @@ const Insights = () => {
           table={{ head: ['Language', 'Share %'], rows: d.languages.map((l) => [l.label, l.value]) }}
         >
           <Donut items={d.languages} label="Donut chart of people reached by language" />
+        </ChartCard>
+
+        <ChartCard
+          title="Where people reached you from"
+          sub={`Share of the people reached, by how far from your shop. Sample data, like the rest of this screen. The bands centre on ${geo?.area || 'your area'} from your plan.`}
+          table={{ head: ['Area', 'Share %', 'People reached'], rows: areaBands.map((b) => [b.label, `${b.value}%`, n(round100((d.kpis.totalReach * b.value) / 100))]) }}
+        >
+          <BarChart horizontal items={areaBands} format={(v) => `${v}%`} label="Bar chart of the share of people reached, by how far from the shop" />
         </ChartCard>
 
         <Results />

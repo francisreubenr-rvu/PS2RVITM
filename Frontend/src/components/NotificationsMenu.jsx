@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, Check, ChevronDown, Heart, Mail, ShoppingBag, Sparkles, UserMinus, X, Info } from 'lucide-react';
 import { api } from '../campaign/lib/api';
 import { navigate } from '../lib/router';
@@ -21,8 +22,24 @@ const NotificationsMenu = ({ user }) => {
   const [feed, setFeed] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pos, setPos] = useState(null);
   const root = useRef(null);
+  const panel = useRef(null);
   const button = useRef(null);
+
+  // The panel is portalled to the body and pinned in viewport coordinates, so it stays on screen when the
+  // name chip sits at the left on a narrow header, and its height never runs past the bottom of the window.
+  const measure = useCallback(() => {
+    const b = button.current?.getBoundingClientRect();
+    if (!b) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 8;
+    const width = Math.min(352, vw - gap * 2);
+    const top = Math.min(b.bottom + gap, Math.max(gap, vh - 160));
+    const left = Math.max(gap, Math.min(b.right - width, vw - width - gap));
+    setPos({ top, left, width, maxH: Math.max(200, vh - top - gap) });
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -47,12 +64,20 @@ const NotificationsMenu = ({ user }) => {
 
   useEffect(() => {
     if (!open) return undefined;
-    const away = (e) => { if (!root.current?.contains(e.target)) setOpen(false); };
+    const away = (e) => { if (!root.current?.contains(e.target) && !panel.current?.contains(e.target)) setOpen(false); };
     const esc = (e) => { if (e.key === 'Escape') { setOpen(false); button.current?.focus(); } };
     document.addEventListener('pointerdown', away);
     document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
-  }, [open]);
+    measure();
+    window.addEventListener('resize', measure);
+    document.addEventListener('scroll', measure, true);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', esc);
+      window.removeEventListener('resize', measure);
+      document.removeEventListener('scroll', measure, true);
+    };
+  }, [open, measure]);
 
   const act = async (fn) => {
     setBusy(true);
@@ -88,9 +113,15 @@ const NotificationsMenu = ({ user }) => {
         {badge > 0 && <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-accent px-1 text-[10px] font-bold leading-[18px] text-on-accent ring-2 ring-[#2a2118]">{badge > 9 ? '9+' : badge}</span>}
       </button>
 
-      {open && (
-        <div role="dialog" aria-label="Notifications" className="cp-pop absolute right-0 top-full z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl text-white">
-          <div className="max-h-[70vh] overflow-y-auto p-2">
+      {open && pos && createPortal((
+        <div
+          ref={panel}
+          role="dialog"
+          aria-label="Notifications"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
+          className="cp-pop z-50 overflow-hidden rounded-2xl text-white"
+        >
+          <div className="overflow-y-auto overscroll-contain p-2" style={{ maxHeight: pos.maxH }}>
             {error && <p role="alert" className="px-2 py-1.5 text-sm text-bad">{error}</p>}
 
             {feed?.suggestion_count > 0 && (
@@ -140,7 +171,7 @@ const NotificationsMenu = ({ user }) => {
             </section>
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 };

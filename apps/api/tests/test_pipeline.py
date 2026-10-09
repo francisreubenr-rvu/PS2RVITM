@@ -25,6 +25,8 @@ class ScriptedAgnes:
         self.second = []
         self.last_review = None
 
+    text_ready = True
+
     async def chat(self, messages, *, cache_kind, temperature=0.2, max_tokens=1200):
         if cache_kind == "brief":
             return json.dumps({"item": "filter coffee", "audiences": ["regulars"]})

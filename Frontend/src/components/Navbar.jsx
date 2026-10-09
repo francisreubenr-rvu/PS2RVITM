@@ -6,6 +6,7 @@ import { useCurrent } from '../campaign/lib/current';
 import { useAuth } from '../lib/auth';
 import NotificationsMenu from './NotificationsMenu';
 import { openTalk } from './talk/useTalk';
+import { OrbCursor } from '../orb/orbPresence';
 
 const greeting = () => {
   const hour = new Date().getHours();
@@ -68,11 +69,12 @@ const Navbar = ({ page, onSelect, onOpenMenu, onOpenSummary }) => {
             )}
             <ProviderChip name={provider} />
             <SyncDot state={sync} />
+            {status === null && <span className="rounded-full bg-white"><OrbCursor active kind="searching" label="Reaching the server" /></span>}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-2">
         <NotificationsMenu user={user} />
         <button
           type="button"

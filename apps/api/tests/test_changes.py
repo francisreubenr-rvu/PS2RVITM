@@ -1,7 +1,8 @@
 """Change by voice: classify, ground, dry-run, then apply on confirm."""
 import json
 
-from app.service import Service
+from app.changes import DEMO_EVENTS, clear_demo_events, seed_demo_events
+from app.service import Service, now
 from test_interview import ExtractAgnes, make, run_to
 
 
@@ -96,3 +97,29 @@ def test_with_a_key_the_model_classifies_and_its_numbers_are_grounded(tmp_path):
     bad = propose(client, cid, "make it cheaper for students")
     # 99 is not in the owner's words, so the model value is dropped and nothing readable remains.
     assert bad.status_code == 422
+
+
+def test_demo_change_log_is_seeded_newest_first_and_clears(tmp_path):
+    app, client = make(tmp_path)
+    cid = "demo-log1"
+    app.state.db.campaign_insert({"id": cid, "brand_voice": None, "status": "facts_locked",
+                                  "transcript": "sample", "suggestion": None, "created_at": now()})
+    written = seed_demo_events(app.state.db, cid)
+    assert written == len(DEMO_EVENTS)
+    assert seed_demo_events(app.state.db, cid) == written  # replaces, never piles up
+    events = client.get(f"/campaign/{cid}/board").json()["events"]
+    assert len(events) == written
+    assert events[0]["campaign_id"] == cid  # the screen reads this to label the row Sample
+    assert events[0]["action"] == DEMO_EVENTS[-1]["action"]  # newest first
+    assert clear_demo_events(app.state.db, cid) == written
+    assert client.get(f"/campaign/{cid}/board").json()["events"] == []
+
+
+def test_demo_events_never_clear_a_real_campaign(tmp_path):
+    app, client = make(tmp_path)
+    cid = "a-real-campaign"
+    app.state.db.campaign_insert({"id": cid, "brand_voice": None, "status": "draft",
+                                  "transcript": "real", "suggestion": None, "created_at": now()})
+    app.state.db.log(now(), "owner", "campaign_created", "Transcript stored.", cid)
+    assert clear_demo_events(app.state.db, cid) == 0
+    assert client.get(f"/campaign/{cid}/board").json()["events"]

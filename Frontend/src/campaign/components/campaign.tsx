@@ -9,6 +9,7 @@ import { WhatsAppQueue } from "./broadcast";
 import { openTalk } from "../../components/talk/useTalk";
 import { AssetSurface, IMAGE_CHANNELS, OVERLAY_KIND, mediaPhase, pickBase } from "./surfaces";
 import { Badge, Button, Empty, ErrorNote } from "./ui";
+import { OrbLoader } from "../../orb/orbPresence";
 
 const ACTIVE_JOB = ["queued", "running", "waiting_for_key"];
 
@@ -476,7 +477,7 @@ export function CampaignView({ id, go, onBusiness }: { id: string; go: (r: Route
     }
   }
 
-  if (!board) return <div className="page">{fatal ? <ErrorNote onRetry={refresh}>{error}</ErrorNote> : <p className="muted">Loading Campaign 0.</p>}</div>;
+  if (!board) return <div className="page">{fatal ? <ErrorNote onRetry={refresh}>{error}</ErrorNote> : <OrbLoader kind="loading" label="Loading the campaign" className="mx-auto w-fit rounded-2xl bg-white" />}</div>;
 
   const locked = Boolean(board.facts?.approved);
   const business = plan?.business.name || "";
@@ -500,7 +501,7 @@ export function CampaignView({ id, go, onBusiness }: { id: string; go: (r: Route
     <div className="page campaign">
       <header className="camp-head">
         <div>
-          <p className="kicker">Campaign 0{business ? ` for ${business}` : ""}</p>
+          <p className="kicker">Campaign{business ? ` for ${business}` : ""}</p>
           <h1 className="display-sm">{assets.length ? `${approvedN} of ${assets.length} approved` : "Not written yet"}</h1>
           {assets.length ? (
             <div className="progress-bar camp-bar" aria-hidden="true"><span style={{ width: `${assets.length ? (approvedN / assets.length) * 100 : 0}%` }} /></div>
@@ -517,12 +518,12 @@ export function CampaignView({ id, go, onBusiness }: { id: string; go: (r: Route
       {statesMissing ? <p className="muted small">Pictures and tracked links are not available yet (the asset state endpoint is missing).</p> : null}
 
       {!assets.length ? (
-        <Empty title={locked ? "Campaign 0 has not been written yet" : "The plan is not locked yet"}>
+        <Empty title={locked ? "Campaign has not been written yet" : "The plan is not locked yet"}>
           {locked ? "Write it to create every channel and language from your locked facts." : "Lock the plan first. Copy is only written from locked facts."}
         </Empty>
       ) : null}
       {!assets.length ? (
-        locked ? <Button variant="primary" onClick={write} disabled={writing}>{writing ? "Writing" : "Write Campaign 0"}</Button> : <Button variant="primary" onClick={() => go({ name: "plan", id })}>Back to the plan</Button>
+        locked ? <Button variant="primary" onClick={write} disabled={writing}>{writing ? "Writing" : "Write Campaign"}</Button> : <Button variant="primary" onClick={() => go({ name: "plan", id })}>Back to the plan</Button>
       ) : null}
       {assets.length && !written.length ? <p className="muted">Waiting for the first copy to arrive.</p> : null}
 

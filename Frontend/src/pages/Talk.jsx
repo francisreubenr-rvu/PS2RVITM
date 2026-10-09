@@ -22,7 +22,7 @@ const Bubble = ({ m, onReplay }) => {
     >
       <span className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${ai ? 'rounded-tl-md bg-ink/6 text-ink' : 'rounded-tr-md bg-accent text-on-accent'}`}>{m.text}</span>
       <span className="flex items-center gap-2 px-1 text-[11px] text-ink/45">
-        {ai ? (m.provider ? `GrowIt · ${m.provider === 'groq' ? 'Groq' : m.provider === 'gemini' ? 'Gemini' : 'Agnes'}${m.ms ? ` · ${(m.ms / 1000).toFixed(1)}s` : ''}` : 'GrowIt') : m.source === 'typed' ? 'You typed' : m.source === 'tap' ? 'You tapped' : 'You said'}
+        {ai ? (m.provider ? `GrowIt · ${m.provider === 'groq' ? 'Groq' : m.provider === 'gemini' ? 'Gemini' : m.provider === 'agnez' ? 'Agnez' : 'Agnes'}${m.ms ? ` · ${(m.ms / 1000).toFixed(1)}s` : ''}` : 'GrowIt') : m.source === 'typed' ? 'You typed' : m.source === 'tap' ? 'You tapped' : 'You said'}
         {ai && <button type="button" onClick={() => onReplay(m.text)} aria-label="Say it again" className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 hover:bg-ink/8"><Volume2 size={11} /> again</button>}
       </span>
     </motion.li>
@@ -31,7 +31,7 @@ const Bubble = ({ m, onReplay }) => {
 
 // S3: Talk. The one place for everything spoken: start a campaign, change one, open a screen. GrowIt speaks every line and, in
 // hands-free mode, listens again as soon as it has finished, like a phone call. Everything is also on screen, and you can type.
-const Talk = ({ id }) => {
+const TalkScreen = ({ id }) => {
   const { me } = useAuth();
   const t = useTalk({ sessionId: id, user: me?.user });
   const [text, setText] = useState('');
@@ -51,7 +51,8 @@ const Talk = ({ id }) => {
     setText('');
   };
   const chip = 'btn-ghost h-9 px-3.5 text-sm';
-  const caption = t.mic.listening ? t.mic.interim || 'Speak now' : t.mic.transcribing ? 'One moment' : t.lastHeard ? `Heard: “${t.lastHeard}”` : '';
+  const agnezOff = Boolean(t.agnez.availability && t.agnez.availability.available === false) || !t.mic.supported;
+  const caption = t.ended ? 'The call has ended. Reconnect to talk again, or type below.' : t.mic.speaking ? 'Agnez is speaking. Talk over her to interrupt.' : t.mic.listening ? 'Listening. Just talk.' : t.mic.transcribing ? 'Opening the voice call…' : t.lastHeard ? `Heard: “${t.lastHeard}”` : '';
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -67,8 +68,7 @@ const Talk = ({ id }) => {
             </select>
           </label>
           <div className="flex flex-wrap items-center gap-4 text-sm">
-            <label className="flex items-center gap-2"><Toggle checked={t.handsFree} onChange={t.setHandsFree} label="Hands-free" /> Hands-free</label>
-            <label className="flex items-center gap-2"><Toggle checked={t.voiceOn} onChange={t.setVoiceOn} label="GrowIt speaks" /> GrowIt speaks</label>
+            <label className="flex items-center gap-2"><Toggle checked={t.voiceOn} onChange={t.setVoiceOn} label="Agnez speaks" /> Agnez speaks</label>
           </div>
         </div>
 
@@ -87,7 +87,7 @@ const Talk = ({ id }) => {
           {t.messages.length === 0 && (
             <li className="m-auto max-w-sm text-center">
               <h2 className="text-xl font-bold tracking-tight">Talk to GrowIt</h2>
-              <p className="mt-1 text-sm text-ink/60">Start a campaign, change one, or open any screen, all by voice. Tap the mic to begin. GrowIt answers out loud, and everything is also written here.</p>
+              <p className="mt-1 text-sm text-ink/60">There is nothing to tap: the call opens and Agnez listens, and her animation shows whose turn it is. The very first time, allow the microphone. Answer whenever you like, even while Agnez is still speaking. Everything is also written here, and you can type instead.</p>
             </li>
           )}
           {t.messages.map((m) => <Bubble key={m.id} m={m} onReplay={t.replay} />)}
@@ -140,24 +140,23 @@ const Talk = ({ id }) => {
         </div>
 
         <div className="flex flex-col items-center gap-2 border-t border-ink/10 pt-4">
-          <Orb phase={t.phase} started={t.started} onClick={t.orb} disabled={t.busy && t.phase !== 'speaking'} />
-          <p className="min-h-5 max-w-md text-center text-sm text-ink/70" aria-live="polite">{caption}</p>
-          {t.paused && <p className="text-xs text-warn">Hands-free is waiting. Tap the mic when you are ready.</p>}
+          <Orb phase={t.phase} started={t.started} ended={t.ended} onClick={t.orb} onEnd={t.endCall} disabled={t.busy && t.phase !== 'speaking'} />
+          <p className="min-h-5 max-w-md text-center text-sm text-ink/70" role="status" aria-live="polite">{caption}</p>
+          {t.paused && <p className="text-xs text-warn">The voice call is not open. Tap the mic to reopen it, or type below.</p>}
           {t.mic.error && <p role="alert" className="text-xs font-medium text-bad">{t.mic.error}</p>}
-          {t.mic.note && <p className="text-xs text-ink/50">{t.mic.note}</p>}
-          {!t.mic.supported && <p className="text-xs text-ink/55">Voice input is not available in this browser. You can type instead.</p>}
-          <button type="button" className="text-xs font-medium text-ink/55 hover:text-ink" aria-expanded={typing || !t.mic.supported} onClick={() => setTyping((v) => !v)}>
-            <Keyboard size={12} className="mr-1 inline" /> {typing || !t.mic.supported ? 'Hide typing' : 'Type instead'}
+          {agnezOff && (
+            <p className="max-w-md text-center text-xs text-ink/60">The live voice (Agnez, on ElevenLabs) is not set up on this server. Type your answers instead; everything else still works.</p>
+          )}
+          <button type="button" className="text-xs font-medium text-ink/55 hover:text-ink" aria-expanded={typing || agnezOff} onClick={() => setTyping((v) => !v)}>
+            <Keyboard size={12} className="mr-1 inline" /> {typing || agnezOff ? 'Hide typing' : 'Type instead'}
           </button>
-          {(typing || !t.mic.supported) && (
+          {(typing || agnezOff) && (
             <form onSubmit={submit} className="flex w-full max-w-lg gap-2">
               <input className="field flex-1" value={text} onChange={(e) => setText(e.target.value)} placeholder="Type here and press Enter" aria-label="Type your message" lang={t.session?.lang || t.lang} />
               <button type="submit" className="btn-primary h-10 px-4" disabled={!text.trim() || t.busy}><Send size={15} /> Send</button>
             </form>
           )}
-          <p className="text-[11px] text-ink/40">
-            {t.voiceOn ? `Voice: ${t.voice.engine === 'gemini' ? 'Gemini' : 'your browser'}` : 'GrowIt is silent'}{t.mic.engine ? ` · Mic: ${t.mic.engine === 'server' ? 'server' : 'your browser'}` : ''}
-          </p>
+          <p className="text-[11px] text-ink/40">{t.voiceOn ? 'Voice: Agnez, on ElevenLabs' : 'Agnez is silent'} · Mic: Agnez, on ElevenLabs</p>
         </div>
       </section>
 
@@ -189,5 +188,7 @@ const Talk = ({ id }) => {
     </div>
   );
 };
+
+const Talk = TalkScreen;
 
 export default Talk;

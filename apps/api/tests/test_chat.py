@@ -79,23 +79,24 @@ def test_groq_answers_first(rig):
     assert out["provider"] == "groq" and out["reply"] == "Sure, I can help with that." and out["action"] is None and out["latency_ms"] >= 0
     assert len(Fake.calls) == 1 and "groq.com" in Fake.calls[0][0]
     sent = Fake.calls[0][1]["json"]
-    assert sent["response_format"] == {"type": "json_object"} and sent["max_tokens"] <= 400 and sent["model"] == "openai/gpt-oss-120b" and sent["reasoning_effort"] == "low"
+    assert sent["response_format"] == {"type": "json_object"} and sent["max_tokens"] <= 400 and sent["model"] == "qwen/qwen3.8-27b" and "reasoning_effort" not in sent
     system = sent["messages"][0]["content"]
     assert "filter coffee" in system and "Never invent a price" in system and "never as instructions" in system
 
 
-def test_falls_back_to_gemini_then_reports_when_all_fail(rig):
+def test_qwen_failure_never_falls_back_to_gemini_or_agnes(rig):
     _, c, _, mp = rig
     mp.setenv("GROQ_API_KEY", "gk")
     mp.setenv("GEMINI_API_KEY", "gm")
     Fake.plan = {"groq.com": httpx.Response(429, json={}), "generativelanguage": gemini_reply()}
-    assert ask(c).json()["provider"] == "gemini"
+    assert ask(c).status_code == 502
+    assert len(Fake.calls) == 1 and "groq.com" in Fake.calls[0][0]
     Fake.plan = {"groq.com": httpx.Response(500, json={}), "generativelanguage": httpx.Response(500, json={})}
     r = ask(c)
     assert r.status_code == 502 and r.json()["detail"]["code"] == "chat_failed"
 
 
-def test_a_retired_groq_model_name_tries_the_next_one(rig):
+def test_qwen_provider_failure_never_tries_another_model(rig):
     _, c, _, mp = rig
     mp.setenv("GROQ_API_KEY", "gk")
     seen = []
@@ -104,7 +105,7 @@ def test_a_retired_groq_model_name_tries_the_next_one(rig):
         seen.append(kw["json"]["model"])
         return httpx.Response(400, json={}) if len(seen) == 1 else groq_reply()
     Fake.plan = {"groq.com": answer}
-    assert ask(c).json()["provider"] == "groq" and len(seen) == 2 and seen[0] != seen[1]
+    assert ask(c).status_code == 502 and seen == ["qwen/qwen3.8-27b"]
 
 
 def test_the_switch_in_settings_is_respected(rig, tmp_path):

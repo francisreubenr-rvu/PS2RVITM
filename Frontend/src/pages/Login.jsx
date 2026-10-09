@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import Backdrop from '../components/Backdrop.jsx';
-import { Loader2 } from 'lucide-react';
 import Logo from '../components/Logo';
 import { loginUrl, useAuth } from '../lib/auth';
 import { navigate } from '../lib/router';
+import { landingFor } from '../lib/tour';
+import { OrbCursor, OrbOverlay } from '../orb/orbPresence';
 
 const REASONS = {
   denied: 'You cancelled the Google sign-in. Try again when you are ready.',
@@ -20,48 +22,102 @@ const GoogleMark = () => (
   </svg>
 );
 
-// S0: Sign in with Google. The button leaves for the server, which talks to Google and sets the session cookie.
+// S0: Sign in. The dummy admin/admin pair signs in locally with no database; the Google button stays
+// for servers that still offer it. One field pair, one primary action, one plain inline error.
 const Login = ({ reason }) => {
-  const { me, loading, unreachable, refresh } = useAuth();
+  const { me, signIn } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const message = reason ? REASONS[reason] ?? REASONS.failed : null;
-  const ready = me?.configured;
+
+  const submit = (event) => {
+    event.preventDefault();
+    if (busy) return;
+    setError('');
+    const result = signIn(email, password);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setBusy(true);
+    navigate(landingFor(result.user));
+  };
+
+  const input =
+    'h-11 w-full rounded-xl border border-white/15 bg-white/10 px-3.5 text-sm text-white placeholder:text-white/35 transition-colors focus:border-accent focus:bg-white/15 focus:outline-none';
 
   return (
     <div className="grid min-h-dvh place-items-center p-4">
       <Backdrop />
-      <main className="glass-panel w-full max-w-sm rounded-[28px] p-8 text-center">
-        <Logo size={64} className="mx-auto rounded-2xl" />
-        <h1 className="mt-5 text-2xl font-semibold tracking-tight">GrowIt</h1>
-        <p className="text-xs font-medium tracking-wide text-accent">AI Marketing Studio</p>
-        <p className="mt-2 text-sm text-white/60">Your brand and campaigns sync to your phone and laptop.</p>
+      <main className="glass-panel w-full max-w-sm rounded-[28px] p-8">
+        <div className="flex flex-col items-center text-center">
+          <Logo size={60} className="rounded-2xl" />
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight">Sign in to GrowIt</h1>
+          <p className="mt-1 text-sm text-white/60">Your brand and campaigns, on your phone and laptop.</p>
+        </div>
 
-        {loading ? (
-          <p role="status" className="mt-8 flex items-center justify-center gap-2 text-sm text-white/60">
-            <Loader2 size={16} className="animate-spin" /> Checking the server
+        {message && (
+          <p role="alert" className="mt-5 rounded-xl bg-bad/15 px-3.5 py-2.5 text-sm text-white">
+            {message}
           </p>
-        ) : unreachable ? (
-          <div role="alert" className="mt-8 rounded-2xl bg-bad/15 px-4 py-3 text-sm">
-            Cannot reach the server. Start the API, then <button type="button" onClick={refresh} className="font-semibold underline">try again</button>.
-          </div>
-        ) : ready ? (
-          <a href={loginUrl()} className="btn mt-8 h-12 w-full bg-white text-ink hover:bg-white/90">
-            <GoogleMark /> Continue with Google
-          </a>
-        ) : (
-          <div className="mt-8 rounded-2xl bg-white/10 px-4 py-3 text-left text-sm text-white/80">
-            Google sign-in is not set up on this server yet. Add <code className="text-white">GOOGLE_CLIENT_ID</code> and <code className="text-white">GOOGLE_CLIENT_SECRET</code> to the server's .env, then restart it.
-          </div>
         )}
 
-        {message && <p role="alert" className="mt-4 text-sm text-bad">{message}</p>}
-
-        {me && !me.require_login && !loading && (
-          <button type="button" onClick={() => navigate('home')} className="mt-4 text-sm text-white/60 underline hover:text-white">
-            Continue without signing in
+        <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-white/75">Email</span>
+            <input
+              type="text"
+              name="email"
+              autoComplete="username"
+              spellCheck="false"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin"
+              className={input}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-white/75">Password</span>
+            <input
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="admin"
+              className={input}
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm font-medium text-bad">
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={busy} className="btn btn-primary h-11 w-full">
+            {busy ? 'Signing in' : 'Sign in'}
+            <OrbCursor active={busy} kind="loading" label="Signing in" />
           </button>
+        </form>
+
+        {me?.configured && (
+          <>
+            <div className="my-5 flex items-center gap-3 text-xs text-white/40">
+              <span className="h-px flex-1 bg-white/10" />
+              or
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
+            <a href={loginUrl()} className="btn h-11 w-full bg-white text-ink hover:bg-white/90">
+              <GoogleMark /> Continue with Google
+            </a>
+          </>
         )}
-        {me?.restricted && ready && <p className="mt-4 text-xs text-white/45">Only approved accounts can sign in.</p>}
+
+        <p className="mt-6 text-center text-xs text-white/40">Demo sign-in: admin / admin</p>
       </main>
+      <OrbOverlay show={busy} kind="loading" label="Signing you in" />
     </div>
   );
 };

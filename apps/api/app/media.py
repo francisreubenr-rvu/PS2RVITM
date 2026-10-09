@@ -27,7 +27,7 @@ from typing import Any, Literal
 import httpx
 from fastapi import APIRouter, FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app import plan
 from app.agnes import AgnesError
@@ -64,6 +64,7 @@ CHANNEL_RATIO = {
     "instagram_story": "9:16",
     "story": "9:16",
     "blog_post": "16:9",
+    "reel": "16:9",
     "poster": "3:4",
     "google_business_post": "4:3",
 }
@@ -72,6 +73,7 @@ COMPOSITION = {
     "instagram_story": "Vertical composition, subject in the middle third, calm empty space at the top and bottom.",
     "story": "Vertical composition, subject in the middle third, calm empty space at the top and bottom.",
     "blog_post": "Wide composition, subject off-centre, soft uncluttered background.",
+    "reel": "Landscape still photograph, subject on the left with a clear background.",
     "poster": "Single focal subject, generous calm empty space at the top and bottom for a headline.",
     "google_business_post": "Clear subject, tidy background, nothing busy at the edges.",
 }
@@ -236,8 +238,12 @@ async def run_image_job(app: FastAPI, job_id: str) -> None:
         db.log(now(), "system", "image_failed", str(exc)[:500], job["campaign_id"])
 
 
+class ImageIn(BaseModel):
+    prompt: str = Field(min_length=40, max_length=1900)
+
+
 @router.post("/assets/{asset_id}/image")
-async def create_image(asset_id: str, request: Request) -> dict:
+async def create_image(asset_id: str, request: Request, body: ImageIn | None = None) -> dict:
     db = request.app.state.db
     asset = asset_or_404(db, asset_id)
     ratio = CHANNEL_RATIO.get(asset["channel"])
@@ -256,6 +262,13 @@ async def create_image(asset_id: str, request: Request) -> dict:
     if not item:
         raise fail("no_item", "The campaign has no offer item to picture yet.", 409)
     prompt = build_prompt(asset, item, campaign_plan)
+    if body is not None:
+        from app.videoprompt import leaks, OVERLAY_LINE
+        approved = db.facts_approved(asset["campaign_id"])
+        why = leaks(body.prompt, json.loads(approved["json"]) if approved else None)
+        if why:
+            raise fail("prompt_has_offer_text", "Offer text is added by the renderer.", 422)
+        prompt = body.prompt + " " + OVERLAY_LINE
     media_id = uuid.uuid4().hex
     job = Service(db).queue_job(
         asset,

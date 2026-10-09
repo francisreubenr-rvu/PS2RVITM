@@ -1,17 +1,24 @@
-"""launch: the "no business yet" path. Ideas, names and taglines from a few answers, then a hand-off to the agent.
+"""launch: the "no business yet" path. The Groq Qwen planner devises a few pathways from the answers, the owner picks one, and
+then ideas, names and taglines come back from Qwen, ending in a hand-off to the agent.
 
-Everything the model returns here is a suggestion. Costs are model estimates, not advice, and the response says so. Kannada and
+Everything a model returns here is a suggestion. Costs are model estimates, not advice, and the response says so. Kannada and
 Hindi taglines are drafts for a native speaker. The hand-off sentence is composed by code from what the owner picked, so the
 agent reads it like any other idea and still stops at the plan lock.
+
+All reasoning steps talk to Groq, and it uses one model: qwen (GROQ_CHAT_MODEL wins if set). When Groq is
+switched off in Settings or has no key, the route answers 503 "not configured" and the screen says so, rather than inventing a plan.
 """
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from app import brain, extras
 from app.agnes import AgnesError
 from app.media import fail
 from app.worker import parse_json_object
@@ -30,9 +37,21 @@ DISCLAIMER = "Suggestions from an AI, not advice. Costs are rough estimates: che
 class IdeasIn(BaseModel):
     city: str = Field(min_length=2, max_length=80)
     skills: list[str] = Field(default_factory=list, max_length=12)
-    budget: str = Field(default="10to50k", max_length=20)
+    budget: str = Field(default="10to50k", max_length=20)  # older callers; newer ones send the per-week amount instead
+    amount_per_week: int | None = Field(default=None, ge=0, le=10_000_000)
     hours_per_week: int = Field(default=20, ge=1, le=100)
     avoid: str = Field(default="", max_length=200)
+    pathway: str = Field(default="", max_length=120)  # the pathway the owner picked, to keep the ideas inside it
+
+
+class PathwaysIn(BaseModel):
+    city: str = Field(min_length=2, max_length=80)
+    skills: list[str] = Field(default_factory=list, max_length=12)
+    amount_per_week: int = Field(default=0, ge=0, le=10_000_000)
+    hours_per_week: int = Field(default=20, ge=1, le=100)
+    avoid: str = Field(default="", max_length=200)
+    name: str = Field(default="", max_length=80)
+    tagline: str = Field(default="", max_length=120)
 
 
 class NamesIn(BaseModel):
@@ -104,16 +123,52 @@ def clean_names(raw: Any) -> dict[str, Any]:
     return {"names": names, "taglines": taglines[:4]}
 
 
+def clean_pathways(raw: Any) -> list[dict[str, Any]]:
+    """Shape the planner's pathways. Each needs a title, a summary and a reason of its own; the rest is trimmed or dropped.
+    Bounded to four, so the screen shows three or four and never a wall of them."""
+    out = []
+    for n, item in enumerate(raw if isinstance(raw, list) else []):
+        if not isinstance(item, dict):
+            continue
+        title, summary, why = _s(item.get("title"), 80), _s(item.get("summary"), 240), _s(item.get("why"), 240)
+        if not (title and summary and why):
+            continue
+        out.append({"id": f"path{n}", "title": title, "summary": summary, "why": why,
+                    "first_move": _s(item.get("first_move"), 200), "money": _s(item.get("money"), 160),
+                    "time": _s(item.get("time"), 80), "risk": _s(item.get("risk"), 140)})
+    return out[:4]
+
+
 async def _ask(request: Request, messages: list[dict[str, str]], kind: str) -> Any:
-    if not request.app.state.settings.agnes_api_key:
-        from app.extras import key_override
-        if not key_override(request.app.state.db, "text"):
-            raise fail("agnes_not_configured", "Add an Agnes key to get ideas.", 409)
+    if not extras.toggle_state(request.app.state.db, "groq")["active"]:
+        raise fail("brain_not_configured", "The Groq planner is off or has no key. Switch Groq on in Settings, then try again.", 503)
+    return await _qwen(messages[0]["content"], json.loads(messages[1]["content"]), 2200)
+
+
+async def _qwen(system: str, user: dict[str, Any], max_tokens: int) -> dict[str, Any]:
+    """One call to the Groq Qwen planner. Raises a clear 503 when Groq is off or unkeyed, 502 when it fails or answers junk."""
+    key = (os.environ.get("GROQ_API_KEY") or "").strip()
+    if not key:
+        raise fail("brain_not_configured", "The Groq planner has no key on the server. Add one to switch it on.", 503)
+    payload = {"model": brain.GROQ_MODEL,  # one model only: qwen, with GROQ_CHAT_MODEL as the override
+               "messages": [{"role": "system", "content": system},
+                            {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
+               "temperature": 0.5, "max_tokens": max_tokens, "response_format": {"type": "json_object"}}
     try:
-        raw = await request.app.state.agnes.chat(messages, cache_kind=kind, temperature=0.7, max_tokens=2200)
-        return parse_json_object(raw)
-    except (AgnesError, ValueError, json.JSONDecodeError) as exc:
-        raise fail("ideas_failed", f"The assistant could not answer just now ({str(exc)[:80]}). Try again.", 502) from exc
+        async with httpx.AsyncClient(timeout=45) as client:
+            response = await client.post(brain.GROQ_URL, headers={"Authorization": f"Bearer {key}"}, json=payload)
+    except httpx.HTTPError as exc:
+        raise fail("pathways_failed", f"The planner did not answer just now ({type(exc).__name__}). Try again.", 502) from exc
+    if response.status_code >= 400:
+        raise fail("pathways_failed", f"The planner said {response.status_code}. Try again in a moment.", 502)
+    try:
+        content = response.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise fail("pathways_failed", "The planner's answer could not be read. Try again.", 502) from exc
+    try:
+        return parse_json_object(content)
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise fail("pathways_failed", "The planner's answer was not usable. Try again.", 502) from exc
 
 
 @router.post("/launch/ideas")
@@ -124,9 +179,10 @@ async def ideas(body: IdeasIn, request: Request) -> dict:
                         "items": [{"name": "<product>", "price": "<example price in rupees, integer>"}]}]}
     messages = [
         {"role": "system", "content": (
-            "You suggest three small, realistic business ideas for an Indian first-time owner. Fit their skills, money, hours and "
-            "avoidances. Be modest about costs and say what licence or permission may be needed. Each idea needs 3 starter items "
-            "with example prices. Return one JSON object only, in this shape: " + json.dumps(shape))},
+            "You suggest three small, realistic business ideas for an Indian first-time owner. Fit their skills, the money they can put "
+            "in each week, their hours and their avoidances. When the request names a chosen pathway, keep every idea inside that "
+            "pathway and consistent with it. Be modest about costs and say what licence or permission may be needed. Each idea needs 3 "
+            "starter items with example prices. Return one JSON object only, in this shape: " + json.dumps(shape))},
         {"role": "user", "content": json.dumps(body.model_dump(), ensure_ascii=False)},
     ]
     parsed = await _ask(request, messages, "launch_ideas")
@@ -134,6 +190,36 @@ async def ideas(body: IdeasIn, request: Request) -> dict:
     if not found:
         raise fail("ideas_failed", "No usable ideas came back. Try again.", 502)
     return {"ideas": found, "disclaimer": DISCLAIMER}
+
+
+PATHWAY_SHAPE = {"pathways": [{
+    "title": "<short name for this direction>",
+    "summary": "<what this business is, in one or two plain sentences>",
+    "why": "<why it fits this person's skills, weekly money, hours and avoidances>",
+    "first_move": "<the very first step they could take this week>",
+    "money": "<what their weekly money would cover to start>",
+    "time": "<rough hours a week it needs>",
+    "risk": "<the one main thing that could go wrong>",
+}]}
+
+
+@router.post("/launch/pathways")
+async def pathways(body: PathwaysIn, request: Request) -> dict:
+    """The planner step: the moment the form is submitted, Groq Qwen turns the answers into three or four pathways to choose from."""
+    if not extras.toggle_state(request.app.state.db, "groq")["active"]:
+        raise fail("brain_not_configured", "The Groq planner is off or has no key. Switch Groq on in Settings, then try again.", 503)
+    shape = json.dumps(PATHWAY_SHAPE)
+    system = (
+        "You are the GrowIt planner for a first-time owner in India who has no business yet. Read their skills, the money they can put "
+        "in each week, their hours and what they want to avoid, then devise exactly four distinct business pathways, each a clear "
+        "direction they could take. Keep every number modest and in rupees and say what licence or permission a step needs. Do not "
+        "invent facts about them beyond what they wrote. Return one JSON object only, in this shape: " + shape)
+    found = clean_pathways((await _qwen(system, body.model_dump(), 1800)).get("pathways"))
+    if len(found) < 3:  # one more try: the model sometimes leaves a summary or reason out
+        found = clean_pathways((await _qwen(system, body.model_dump(), 1800)).get("pathways"))
+    if len(found) < 3:
+        raise fail("pathways_failed", "No usable pathways came back. Try again.", 502)
+    return {"pathways": found, "model": brain.GROQ_MODEL, "disclaimer": DISCLAIMER}
 
 
 @router.post("/launch/names")

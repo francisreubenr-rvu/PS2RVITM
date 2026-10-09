@@ -22,6 +22,8 @@ class FakeAgnes:
         self.brief = brief
         self.kinds = []
 
+    text_ready = True
+
     async def chat(self, messages, *, cache_kind, temperature=0.2, max_tokens=1200):
         self.kinds.append(cache_kind)
         if cache_kind == "agent_brief":
@@ -105,4 +107,4 @@ def test_agent_needs_a_key(tmp_path):
                  database_path=tmp_path / "t.db", assets_dir=tmp_path / "a")
     c = TestClient(create_app(s))
     r = c.post("/agent/runs", json={"idea": IDEA, "lang": "en"})
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "agnes_not_configured"
+    assert r.status_code == 503 and r.json()["detail"]["code"] == "brain_not_configured"

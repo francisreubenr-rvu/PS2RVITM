@@ -22,6 +22,7 @@ import BrandData from './pages/BrandData';
 import Settings from './pages/Settings';
 import Bakeoff from './pages/Bakeoff';
 import Login from './pages/Login';
+import Start from './pages/Start';
 import Studio from './pages/Studio';
 import Launch from './pages/Launch';
 import Identity from './pages/Identity';
@@ -30,11 +31,13 @@ import Video from './pages/Video';
 import { findPage, pages } from './navigation';
 import { useRoute, navigate } from './lib/router';
 import { useAuth } from './lib/auth';
+import { landingFor } from './lib/tour';
 import Walkthrough from './components/tour/Walkthrough';
 import Intro from './components/intro/Intro';
 import { INTRO_START, markIntroSeen, setIntroActive, shouldPlayIntro } from './lib/intro';
 
 const SCREENS = {
+  start: Start,
   home: Home,
   agent: Agent,
   replies: Replies,
@@ -68,7 +71,7 @@ const readExpanded = () => {
 };
 
 const AppInner = () => {
-  const { me, loading, logout } = useAuth();
+  const { me, loading, logout, signedIn } = useAuth();
   const { slug, param } = useRoute();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -88,8 +91,10 @@ const AppInner = () => {
   }, [slug, param]);
 
   useEffect(() => {
-    if (me?.signed_in && slug === 'login') navigate('home');
-  }, [me?.signed_in, slug]);
+    // Signed-in people who land on #/login (a bookmark, a back button) go on: a first-timer to Home, where the
+    // walkthrough opens, everyone else to the chooser.
+    if (signedIn && slug === 'login') navigate(landingFor(me?.user));
+  }, [signedIn, slug, me]);
 
   const closeSummary = useCallback(() => setSummaryOpen(false), []);
 
@@ -105,14 +110,18 @@ const AppInner = () => {
     return <Backdrop />;
   }
 
-  // The server says whether login is required. Without it the app stays open for local work.
-  const needLogin = me.require_login && !me.signed_in;
-  if (needLogin || (slug === 'login' && !me.signed_in)) {
+  // The local dummy sign-in (admin/admin) or the server session gates the app. Signed out shows the login.
+  if (!signedIn) {
     return (
       <MotionConfig reducedMotion="user">
         <Login reason={slug === 'login' ? param : undefined} />
       </MotionConfig>
     );
+  }
+
+  // Signed in but still on #/login: wait for the redirect above instead of flashing the shell.
+  if (slug === 'login') {
+    return <Backdrop />;
   }
 
   const page = findPage(slug === 'change' ? 'voice' : slug) ?? pages.home;
@@ -138,8 +147,8 @@ const AppInner = () => {
             <motion.div
               key={`${page.slug}/${param ?? ''}`}
               className="mt-6"
-              initial={{ opacity: 0, y: 14, scale: 0.985, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)', transitionEnd: { filter: 'none', transform: 'none' } }}
+              initial={{ opacity: 0.35, y: 8 }}
+              animate={{ opacity: 1, y: 0, transitionEnd: { transform: 'none' } }}
               transition={{ type: 'spring', stiffness: 260, damping: 28, mass: 0.9 }}
             >
               <Screen key={param} id={param} />
@@ -150,7 +159,8 @@ const AppInner = () => {
 
         <RightPanel drawerOpen={summaryOpen} onCloseDrawer={closeSummary} />
       </div>
-      <Walkthrough user={me.user} />
+      {/* The guided tour waits until the entry chooser is done, so it never moves the page mid-decision. */}
+      {slug !== 'start' && <Walkthrough user={me.user} />}
     </MotionConfig>
   );
 };

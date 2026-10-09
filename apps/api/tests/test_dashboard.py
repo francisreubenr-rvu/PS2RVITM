@@ -91,6 +91,25 @@ def test_quality_counts_from_event_log_and_repair_jobs(rig):
     }
 
 
+def test_geography_splits_area_from_the_plan(rig):
+    app, client, campaign_id, assets = rig
+    assert client.get(f"/campaign/{campaign_id}/dashboard").json()["geography"] == {
+        "area": "Indiranagar, Bengaluru", "locality": "Indiranagar", "city": "Bengaluru", "measured": False,
+    }
+
+
+def test_geography_handles_missing_and_single_word_area(rig, monkeypatch):
+    app, client, campaign_id, assets = rig
+    for plan_data, expected in (
+        ({"business": {"area": "Jayanagar"}}, {"area": "Jayanagar", "locality": "Jayanagar", "city": None, "measured": False}),
+        ({"business": {"area": "  "}}, {"area": None, "locality": None, "city": None, "measured": False}),
+        ({"business": {}}, {"area": None, "locality": None, "city": None, "measured": False}),
+        (None, {"area": None, "locality": None, "city": None, "measured": False}),
+    ):
+        monkeypatch.setattr(plan, "get_plan", lambda db, cid, data=plan_data: data)
+        assert client.get(f"/campaign/{campaign_id}/dashboard").json()["geography"] == expected
+
+
 def test_overview_and_assets_state(rig):
     app, client, campaign_id, assets = rig
     overview = client.get("/campaigns/overview").json()
