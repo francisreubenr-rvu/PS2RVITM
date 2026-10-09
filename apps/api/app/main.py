@@ -6,7 +6,7 @@ import os
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import advisor, business, chat, memory, notifications, tts, unsubscribe, agent, auth, scheduler, autopilot, changes, connections, customers, dashboard, evals, extras, forecast, launch, learn, panel, reply, scout, whatsapp, youtube, interview, media, outreach, persona, plan
+from app import advisor, brain, business, chat, memory, notifications, tts, unsubscribe, agent, auth, scheduler, autopilot, changes, connections, customers, dashboard, evals, extras, forecast, launch, learn, panel, reply, scout, whatsapp, youtube, interview, media, outreach, persona, plan, voice
 from app.agnes import Agnes
 from app.config import Settings, load_settings
 from app.db import Database
@@ -18,7 +18,7 @@ from app.worker import run_brief_job, start_jobs
 
 api = APIRouter()
 # Feature modules. Each owns its tables (ensure_schema) and its routes (router).
-MODULES = (interview, plan, changes, media, outreach, dashboard, persona, extras, forecast, agent, learn, reply, panel, autopilot, launch, scout, evals, auth, connections, whatsapp, youtube, customers, advisor, scheduler, business, unsubscribe, memory, tts, notifications, chat)
+MODULES = (interview, plan, changes, media, outreach, dashboard, persona, extras, forecast, agent, learn, reply, panel, autopilot, launch, scout, evals, auth, connections, whatsapp, youtube, customers, advisor, scheduler, business, unsubscribe, memory, tts, notifications, chat, voice, brain)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

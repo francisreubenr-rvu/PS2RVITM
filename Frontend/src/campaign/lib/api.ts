@@ -119,6 +119,12 @@ export const health = () => api<Health>("/health");
 export const getForecast = (id: string, reach?: number) =>
   api<Forecast>(`/campaign/${id}/forecast${reach ? `?reach=${reach}` : ""}`);
 
+// Voice: a short-lived conversation token for the live ElevenLabs agent (the key and agent id stay on the server)
+export const voiceToken = () => api<{ conversation_token: string }>("/voice/token");
+
+// The reasoning model: one utterance plus the current screen and campaign, back as a spoken line and app actions
+export const orchestrate = (utterance: string, state?: object) => post<any>("/agent/orchestrate", { utterance, state });
+
 // Agent: describe an idea, watch the workflow, step in at the gates
 export const createAgentRun = (idea: string, lang: Lang) => post<any>("/agent/runs", { idea, lang });
 export const tickAgentRun = (id: string) => post<any>(`/agent/runs/${id}/tick`);

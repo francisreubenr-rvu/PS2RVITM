@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Gauge, Bot, Brain, Cog, UserRound, Check, Loader2, CircleAlert, SkipForward, ArrowRight, Mic, Square, ChevronDown } from 'lucide-react';
-import { createAgentRun, tickAgentRun, listAgentRuns, confirmAgentStep, skipAgentStep, runAutopilot } from '../campaign/lib/api';
+import { createAgentRun, tickAgentRun, listAgentRuns, confirmAgentStep, skipAgentStep, runAutopilot, orchestrate } from '../campaign/lib/api';
+import { runActions } from '../campaign/lib/orchestrate';
 import { LANGS, FIELD_LABEL } from '../campaign/lib/format';
 import { useVoiceInput } from '../campaign/lib/voice';
-import { go, setCurrent } from '../campaign/lib/current';
-import { navigate } from '../lib/router';
+import { go, setCurrent, useCurrent } from '../campaign/lib/current';
+import { navigate, useRoute } from '../lib/router';
 
 const KEY = 'll-agent-run';
 const EXAMPLE =
@@ -196,6 +197,72 @@ const Banner = ({ run }) => {
   );
 };
 
+// Tell me what to do: one utterance in, Agnez answers, and the app runs the returned actions with the calls it already has.
+const Tell = ({ campaignId }) => {
+  const { slug } = useRoute();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [say, setSay] = useState('');
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState('');
+  const mic = useVoiceInput('en', (t) => setText((cur) => `${cur} ${t}`.trim()));
+  const ask = async () => {
+    const utterance = text.trim();
+    if (!utterance) return;
+    setBusy(true);
+    setError('');
+    setSay('');
+    setResults(null);
+    try {
+      const out = await orchestrate(utterance, { screen: slug, campaign_id: campaignId });
+      setSay(out.say || '');
+      setResults(await runActions(out.actions || [], { campaign_id: campaignId }));
+      setText('');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const done = (results || []).filter((r) => r.ok);
+  const failed = (results || []).filter((r) => !r.ok);
+  return (
+    <section className="card" aria-label="Tell me what to do">
+      <h2 className="font-semibold">Tell me what to do</h2>
+      <p className="mt-1 text-sm text-ink/60">Say or type a step: “lock the plan”, “write the campaign”, “open the dashboard”. Agnez answers and the app does it with the buttons it already has, still stopping at the steps that need you.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Tell Agnez what to do">
+        <input
+          value={mic.interim && (mic.listening || mic.transcribing) ? `${text} ${mic.interim}`.trim() : text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') ask(); }}
+          maxLength={500}
+          aria-label="What to do"
+          placeholder="Lock the plan, then write the campaign"
+          className="field h-10 min-w-[12rem] flex-1"
+        />
+        <button type="button" disabled={busy || !text.trim()} onClick={ask} className="btn-primary">
+          {busy ? <Loader2 size={15} className="animate-spin" /> : <Bot size={15} />} Do it
+        </button>
+        {mic.supported && (
+          <button type="button" onClick={() => (mic.listening ? mic.stop() : mic.start())} aria-pressed={mic.listening} disabled={mic.transcribing} className="btn-ghost">
+            {mic.listening ? <Square size={14} /> : <Mic size={15} />} {mic.listening ? 'Stop' : mic.transcribing ? 'Transcribing' : 'Speak it'}
+          </button>
+        )}
+      </div>
+      {mic.note && <p className="mt-2 text-xs text-ink/55">{mic.note}</p>}
+      {say && <p className="mt-3 text-sm text-ink/75"><span className="font-semibold">Agnez:</span> {say}</p>}
+      {results && <p role="status" className="mt-1 text-sm text-ink/60">{done.length ? `Ran: ${done.map((r) => r.detail).join('; ')}.` : 'Nothing to run.'}{failed.length ? ` ${failed.length} could not run.` : ''}</p>}
+      {failed.length > 0 && (
+        <ul className="mt-1 flex flex-col gap-0.5 text-sm text-bad" aria-label="What could not run">
+          {failed.map((r, i) => <li key={`${r.type}-${i}`}>{r.type.replace(/_/g, ' ')}: {r.detail}</li>)}
+        </ul>
+      )}
+      {mic.error && <p role="alert" className="mt-2 text-sm text-bad">{mic.error}</p>}
+      {error && <p role="alert" className="mt-2 text-sm text-bad">{error}</p>}
+    </section>
+  );
+};
+
 // S20: describe the idea once, watch the workflow the agent builds, and step in only at the gates.
 const Agent = () => {
   const [idea, setIdea] = useState('');
@@ -205,6 +272,7 @@ const Agent = () => {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const alive = useRef(true);
+  const cur = useCurrent();
 
   const mic = useVoiceInput(lang, (text) => setIdea((cur) => `${cur} ${text}`.trim()));
 
@@ -280,6 +348,7 @@ const Agent = () => {
 
   return (
     <div className="flex flex-col gap-4">
+      <Tell campaignId={run?.campaign_id || cur.id} />
       {!run && (
         <section className="card">
           <h2 className="font-semibold">Describe your idea</h2>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '../../campaign/lib/api';
+import { api, voiceToken } from '../../campaign/lib/api';
 import { addFact, reviseFact } from './facts';
 
 // A live voice briefing with the ElevenLabs agent (Agnez). The browser talks to ElevenLabs directly over a short-lived address the server
@@ -63,8 +63,20 @@ export function useBriefing() {
     closing.current = false;
     setStatus('connecting');
     try {
-      const { signed_url: signedUrl } = await api('/talk/agent');
-      if (!signedUrl) throw new Error('The live agent is not available.');
+      // The live session opens over WebRTC from the conversation token GET /voice/token mints server-side
+      // (@elevenlabs/client 1.27.0 accepts a conversationToken only for connectionType "webrtc"). When that route
+      // is not configured, fall back to the server-signed signed_url from GET /talk/agent over a websocket. The key
+      // and the agent id stay on the server either way.
+      let transport;
+      try {
+        const { conversation_token: token } = await voiceToken();
+        if (!token) throw new Error('no token');
+        transport = { conversationToken: token, connectionType: 'webrtc' };
+      } catch {
+        const { signed_url: signedUrl } = await api('/talk/agent');
+        if (!signedUrl) throw new Error('The live agent is not available.');
+        transport = { signedUrl, connectionType: 'websocket' };
+      }
       const { Conversation } = await import('@elevenlabs/client'); // loaded only when a briefing starts
       const tools = {
         record_fact: (p) => { setFacts((f) => addFact(f, p)); return 'recorded'; },
@@ -74,8 +86,7 @@ export function useBriefing() {
         complete_briefing: () => { setTimeout(() => finish('done'), 4500); return 'completed'; }, // let the agent finish its goodbye
       };
       const base = {
-        signedUrl,
-        connectionType: 'websocket',
+        ...transport,
         clientTools: tools,
         onConnect: () => setStatus('live'),
         onDisconnect: () => { if (!closing.current) setStatus((s) => (s === 'live' || s === 'connecting' ? 'done' : s)); },
