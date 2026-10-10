@@ -1,11 +1,40 @@
 # GrowIt
 
+**HR26-AI-02: Marketing Campaigns**
+
+## The Problem
+
+A café owner in Bengaluru knows exactly what she wants people to hear: a weekend offer, in a tone that sounds like her, in the languages her customers use. But she is behind the counter, her hands are busy and her ideas change as she sees what takes shape. She has no designer, no marketing team and no time to write a brief.
+
+Small businesses and brands often have a clear idea of what they want to communicate but lack the time, resources or expertise to turn it into an effective campaign. A single campaign may need to carry the same message to different audiences, in different languages, across different channels, while staying recognizable and consistent. Requirements keep changing as owners see and react to what is being created, and the one thing that cannot go wrong is what customers are told to expect.
+
+The challenge is to rethink how businesses can turn their ideas and objectives into effective marketing experiences that remain coherent as the campaign evolves.
+
+The solution should enable a business owner to go from a half-formed idea to a campaign they are proud to put their name on, with very little effort. The message, offer and brand should remain consistent across audiences, languages and channels, while ensuring that nothing customers are told to expect is wrong. Changing requirements should be absorbed without losing what was already approved. The owner should know what exists, what changed and what remains pending, while the result feels local and authentic rather than generic or translated. The owner should remain in control, with realistic time and cost requirements for a small business.
+
+## Minimum Objectives
+
+- Generate a coherent campaign adapted to different audiences, languages and channels.
+- Predict campaign performance before launch and autonomously optimize the campaign to maximize its effectiveness.
+- Preserve the exact business intent while autonomously adapting messaging to different cultural and linguistic contexts.
+
+## Open Creativity
+
+The Minimum Objectives are the minimum that must be achieved by your solution. Beyond these requirements, you are encouraged to think beyond the obvious, explore unconventional approaches, identify additional challenges within the problem and introduce your own innovative capabilities.
+
+The more creatively you solve the problem, the more you think out of the box, and the further you push the solution beyond the stated objectives, the more points you can earn.
+
+## GrowIt
+
 GrowIt is a voice-first campaign studio for small businesses. Tell **Agnez** what you want to do in ordinary language. She can move around the app, work with the controls on the current screen, collect a campaign brief, and prepare changes for your review.
 
 The app combines a React web client with a FastAPI service, a SQLite database, and provider APIs for live voice, text reasoning, and media generation. The diagrams below show how those parts connect and where owner approval is required.
 
 ## Contents
 
+- [The Problem](#the-problem)
+- [Minimum Objectives](#minimum-objectives)
+- [Open Creativity](#open-creativity)
 - [What works](#what-works)
 - [How Agnez works](#how-agnez-works)
 - [Campaign flow](#campaign-flow)
