@@ -15,7 +15,7 @@ Stack: Existing React/Vite, ElevenLabs React SDK, FastAPI/SQLite.
 - [x] Record coverage, measured results and remaining limitations.
 - [x] Replace the stale GitHub README with verified setup, provider, feature, and repository guidance plus Mermaid architecture, action, campaign, and deployment diagrams.
 - [x] Write a provider-neutral deployment plan with current blockers and staging/release gates.
-- [x] Commit and push the reviewed branch (`a7c7ac0`, origin/main).
+- [x] Push the reviewed branch to `francis/main` (`ffde313`) and roll `origin/main` back to its pre-push tip (`38fbc9d`).
 - [ ] Select a host and production URL before provider-specific deployment setup.
 
 Current evidence: native start/answer tools on actual recorded Starbucks/cafe/Bangalore Karnataka plus repeat at1440/390, one token each, no locality loop. Registry stale/secret/fresh-confirmation gates passed both widths. Long audible output raw=audible8.4907/7.8507s; Scribe confirms all nine options and final question. Backend638passed,1skipped. Native barge/control request exposed vendor Prompt Injection false-positive termination; targeted guardrail/application authorization fix and native control acceptance passed.

@@ -235,5 +235,5 @@ Actual reversible Settings checks passed at1440/390: exact approved event accept
 | README | Done | Rewritten from current source/config. Includes GitHub Mermaid architecture, Agnez action/approval flow, campaign lifecycle, and release flow diagrams; provider split, local setup, tests, and project map |
 | Deployment plan | Done | `docs/deployment-plan.md` records verified deployment state, hosting requirements, secrets/access gates, staging checks, backup, rollout, and rollback sequence. Hosting target remains undecided |
 | Provider config guide | Done | README lists the live OpenRouter GLM and ElevenLabs Agnez variables. Existing `.env.example` was left unchanged because repo rules prohibit committing `.env*` files |
-| Commit and push | Done | `a7c7ac0` pushed to `origin/main`. GitHub README is updated. |
+| Commit and push | Done | `ffde313` pushed to `francis/main`; `origin/main` was lease-reset to its pre-push `38fbc9d` tip. GitHub README is updated on Francis's repository. |
 | Production deployment | Planned | No hosting manifest/workflow or production URL found. This task prepares a rollout plan; no deployment is configured or claimed |
