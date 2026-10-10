@@ -91,14 +91,14 @@ flowchart TD
     bind --> recheck[Recheck route and field]
     recheck --> fill[Fill the actual field]
     choose -->|Use a control| check[Check target, visibility, and effect]
-    check -->|Read or reversible| click[Activate the actual control]
+    check -->|Read or reversible| activate[Activate the actual control]
     check -->|Consequential| pending[Create exact pending action]
     pending --> confirm{Fresh matching owner confirmation?}
     confirm -->|No| stop[Leave data unchanged]
-    confirm -->|Yes| click
+    confirm -->|Yes| activate
     navigate --> receipt[Report actual result]
     fill --> receipt
-    click --> receipt
+    activate --> receipt
 ```
 
 Page content is treated as data, not instructions. Hidden, disabled, credential, password, and assistant-owned message controls are excluded from the registry. External sends, destructive actions, and paid media still depend on their app and provider gates.
